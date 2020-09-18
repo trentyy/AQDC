@@ -31,32 +31,11 @@ In order to keep tracking the air quality such as CO2( which will make people dr
 
 ### Part1: Website
 
-```flow
-st=>start: Start
-io1=>inputoutput: Read from Database
-cond=>condition: Air Condition OK?
-io2=>inputoutput: Show Notification
-io3=>inputoutput: Show data
-e=>end: End
-
-st->io1->cond
-cond(yes)->io3
-cond(no)->io2->io3
-io3->e
-```
+<img src="C:\Users\Trent-Local\Downloads\螢幕擷取畫面 2020-09-18 194655.png" style="zoom:75%;" />
 
 ### Part2: Collect Data
 
-```flow
-st=>start: Start
-io1=>inputoutput: Collect Data from Sensor
-io2=>inputoutput: Collect Outside Data
-op1=>operation: Save to Database
-io3=>inputoutput: Show data
-e=>end: End
-
-st->io1->io2->op1->e
-```
+![](C:\Users\Trent-Local\Downloads\螢幕擷取畫面 2020-09-18 194708.png" style="zoom:75%;" )
 
 ## Working Goals:
 
