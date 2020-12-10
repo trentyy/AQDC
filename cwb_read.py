@@ -1,6 +1,6 @@
 from datetime import datetime
 import time, json
-import urllib.request
+import requests
 import pymysql.cursors
 
 # log file name
@@ -11,16 +11,21 @@ udtCWB = 10 # update time for cwb: 10 min
 wdCWB = True # writing data to cwb
 myDict = dict()
 
+with open("cwb.json", 'r') as f:
+    j = json.load(f)
+
 
 
 # store request url, include cwb key, do not upload!
 # curl -X GET "https://opendata.cwb.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=YOURKEY&stationId=467490" -H  "accept: application/json"
 
-url = "https://opendata.cwb.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization="
+url = jdata['url']
+key = j['Authorization']
+param = j['stationId']
 
 def getDataCWB(myDict, DEBUG = False):
     # get data from cwb
-    data = urllib.request.urlopen(url).read()
+    data = requests.get(url+key, params=param)
     data = data.decode()
 
     # use json.loads() to parse data from string-version, will become type: dict
