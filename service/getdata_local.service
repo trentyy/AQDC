@@ -1,0 +1,14 @@
+[Unit]
+Description=AQDC get data from Arduino
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -u serial_read.py &
+WorkingDirectory=/home/pi/AQDC/service
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
