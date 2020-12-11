@@ -5,4 +5,5 @@ __pycache__/
 
 
 .venv
-cwb.json
+AQDC.json
+*.log

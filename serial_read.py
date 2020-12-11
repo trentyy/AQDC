@@ -7,11 +7,6 @@ COM_PORT = '/dev/ttyACM0' # linux device in /dev/ttyACM*
 BAUD_RATES = 115200
 
 ser = serial.Serial(COM_PORT, BAUD_RATES)
-connection = pymysql.connect(host='localhost',
-                             user='pi',
-                             password='pi_nchu',
-                             db='AQDC',
-                             cursorclass=pymysql.cursors.DictCursor)
 
 try:
     while True:
@@ -19,8 +14,9 @@ try:
         while ser.in_waiting:
             data_raw = ser.readline()
             data = data_raw.decode()
+
             #print("data_raw: ", data_raw)
-            # print("data: ", data) # decomment if need to check data
+            print("data: ", data) # decomment if need to check data
             # Parse json data
             try:
                 j_data = json.loads(data)
@@ -36,11 +32,26 @@ try:
                 continue
             sql = "INSERT INTO sensor_data(temperture, humidity, CO2, TVOC)" + \
                   "VALUES({0}, {1}, {2}, {3});".format(Temp, Humid, CO2, TVOC)
-            connection.cursor().execute(sql)
-            connection.commit()
+
+            #connection.ping(reconnect=True)
+            try:
+                connection = pymysql.connect(host='localhost',
+                             user='pi',
+                             password='pi_nchu',
+                             db='AQDC',
+                             cursorclass=pymysql.cursors.DictCursor)
+                cursor = connection.cursor()
+
+                connection.ping(reconnect = True)
+                cursor.execute(sql)
+                connection.commit()
+            except Exception as e:
+                print("sql execute Exception:", e)
+                connection.rollback()
+
             connection.close()
 
-            time.sleep(60)
+            time.sleep(5*60)
 
 
 

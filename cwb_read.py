@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 from datetime import datetime
 import time, json
 import requests
@@ -11,22 +13,28 @@ udtCWB = 10 # update time for cwb: 10 min
 wdCWB = True # writing data to cwb
 myDict = dict()
 
-with open("cwb.json", 'r') as f:
-    j = json.load(f)
+with open("AQDC.json", 'r') as f:
+    jdata = json.load(f)
+
+HOST = jdata['host']
+USER = jdata['user']
+PW = jdata['pw']
+DB = jdata['db']
+
+url = jdata['url']
+key = jdata['CWB_key']
+params = jdata['params']
 
 
 
 # store request url, include cwb key, do not upload!
 # curl -X GET "https://opendata.cwb.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=YOURKEY&stationId=467490" -H  "accept: application/json"
 
-url = jdata['url']
-key = j['Authorization']
-param = j['stationId']
 
 def getDataCWB(myDict, DEBUG = False):
     # get data from cwb
-    data = requests.get(url+key, params=param)
-    data = data.decode()
+    data = requests.get(url+key, params=params)
+    data = data.text
 
     # use json.loads() to parse data from string-version, will become type: dict
     jdata = json.loads(data)
@@ -68,8 +76,7 @@ def getDataCWB(myDict, DEBUG = False):
 
 while True:
     time.sleep(60)
-    counter += 1
-    
+    counter += 1  
     if (counter >= udtCWB or wdCWB):
         f = open(LOG, 'a')
         getDataCWB(myDict)
@@ -89,10 +96,7 @@ while True:
             f.close()
             continue
         try:
-            connection = pymysql.connect(host='localhost',
-                             user='pi',
-                             password='pi_nchu',
-                             db='AQDC',
+            connection = pymysql.connect(host=HOST, user=USER, password=PW, db=DB,
                              cursorclass=pymysql.cursors.DictCursor)
             connection.cursor().execute(sql)
             connection.commit()
@@ -112,9 +116,4 @@ while True:
             counter = 9
             
             continue
-    
-    
-
-
-
 
