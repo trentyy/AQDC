@@ -22,7 +22,6 @@ PW = jdata['pw']
 DB = jdata['db']
 
 url = jdata['url']
-key = jdata['CWB_key']
 params = jdata['params']
 
 # here is the name of data which you want to store 
@@ -37,7 +36,7 @@ needed_id = ['lat', 'lon', 'locationName',
 
 def getDataCWB(myDict, DEBUG = False):
     # get data from cwb
-    data = requests.get(url+key, params=params)
+    data = requests.get(url, params=params)
     data = data.text
 
     # use json.loads() to parse data from string-version, will become type: dict
