@@ -5,8 +5,15 @@ import serial, pymysql.cursors
 COM_PORT = '/dev/ttyACM0' # linux device in /dev/ttyACM*
 # COM_PORT = 'COM1' # windows device name
 BAUD_RATES = 115200
-
 ser = serial.Serial(COM_PORT, BAUD_RATES)
+
+with open("AQDC.json", 'r') as f:
+    jdata = json.load(f)
+
+HOST = jdata['host']
+USER = jdata['user']
+PW = jdata['pw']
+DB = jdata['db']
 
 try:
     while True:
@@ -33,23 +40,20 @@ try:
             sql = "INSERT INTO sensor_data(temperture, humidity, CO2, TVOC)" + \
                   "VALUES({0}, {1}, {2}, {3});".format(Temp, Humid, CO2, TVOC)
 
-            #connection.ping(reconnect=True)
+            #db.ping(reconnect=True)
             try:
-                connection = pymysql.connect(host='localhost',
-                             user='pi',
-                             password='pi_nchu',
-                             db='AQDC',
+                db = pymysql.connect(host=HOST, user=USER, password=PW, db=DB,
                              cursorclass=pymysql.cursors.DictCursor)
-                cursor = connection.cursor()
+                cursor = db.cursor()
 
-                connection.ping(reconnect = True)
+                db.ping(reconnect = True)
                 cursor.execute(sql)
-                connection.commit()
+                db.commit()
             except Exception as e:
                 print("sql execute Exception:", e)
-                connection.rollback()
+                db.rollback()
 
-            connection.close()
+            db.close()
 
             time.sleep(5*60)
 

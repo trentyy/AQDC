@@ -25,7 +25,11 @@ url = jdata['url']
 key = jdata['CWB_key']
 params = jdata['params']
 
-
+# here is the name of data which you want to store 
+needed_id = ['lat', 'lon', 'locationName', 
+            'TEMP', 'HUMD', 'PRES',
+            'H_F10', 'H_UVI',
+            'Weather', 'CITY', 'TOWN']
 
 # store request url, include cwb key, do not upload!
 # curl -X GET "https://opendata.cwb.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=YOURKEY&stationId=467490" -H  "accept: application/json"
@@ -39,26 +43,20 @@ def getDataCWB(myDict, DEBUG = False):
     # use json.loads() to parse data from string-version, will become type: dict
     jdata = json.loads(data)
 
-
-    #jdata->records->location
-
-    # here is the name of data which you want to store 
-    needed_id = ['lat', 'lon', 'locationName', 
-                'TEMP', 'HUMD', 'PRES',
-                'H_F10', 'H_UVI',
-                'Weather', 'CITY', 'TOWN']
-
+    # jdata->records->location
     # dealing with data
     tmpList = jdata['records']['location'][0]
 
+    # parse data
     myDict['obsTime'] = tmpList['time']['obsTime']
+    weatherElement = tmpList['weatherElement']
+    parameter = tmpList['parameter']
 
     for item in tmpList.keys():
         if (item in needed_id):
             myDict[item] = tmpList[item]
 
-    weatherElement = tmpList['weatherElement']
-    parameter = tmpList['parameter']
+    
 
     for item in weatherElement:
         tmpDic = dict(item)
@@ -96,11 +94,11 @@ while True:
             f.close()
             continue
         try:
-            connection = pymysql.connect(host=HOST, user=USER, password=PW, db=DB,
+            db = pymysql.connect(host=HOST, user=USER, password=PW, db=DB,
                              cursorclass=pymysql.cursors.DictCursor)
-            connection.cursor().execute(sql)
-            connection.commit()
-            connection.close()
+            db.cursor().execute(sql)
+            db.commit()
+            db.close()
 
             f.write(str(datetime.now()) + '\tSuccess insert, obsTime: ' + str(myDict['obsTime']) + '\n')
             f.close()
