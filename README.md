@@ -20,12 +20,16 @@ In order to keep tracking the air quality such as CO2( which will make people dr
 * Gravity CCS811: detect **CO2** and **TVOC**
 
 ## Software:
-
+* Raspberry Pi:
+    * mosquitto, mosquitto-client ([ref](https://blog.gtwang.org/iot/raspberry-pi/raspberry-pi-mosquitto-mqtt-broker-iot-integration/))
 ## Libraries:
 
 * Raspberry Pi:
+    * pyserial
+    * arduino
+    * arduino-mk
 * Arduino:
-  * 
+  * [pusubclient](https://github.com/knolleary/pubsubclient)
 
 ## Workflow:
 
@@ -41,11 +45,23 @@ In order to keep tracking the air quality such as CO2( which will make people dr
 
 ### Short-term Goals:
 
-* Let "THE monitor"(my pre-project which can send data to thingSpeak server to show data) can sent data to my Raspberry Pi server.
-* Establish database in my Raspberry Pi server.
-
+- [x] Let "THE monitor"(my pre-project which can send data to thingSpeak server to show data) can sent data to my Raspberry Pi server.
+- [x] Establish database in my Raspberry Pi server.
+- [x] Run myscript.service right after server booting to automatic start collecting and saving data.
 ### Long-term Goals:
 
-* Establish server can read data from database, and show it on a website.
+* Show data by graph or gauge on server website.
 * Move my website from local network to Internet!
-* (Use Raspberry Pi controls sensors directly, if send data from Arduino to Pi is too complicated.)
+## API
+* air quality (pm2.5) https://data.epa.gov.tw/
+* weather https://opendata.cwb.gov.tw/
+## Pin
+![G3 3003](https://i.imgur.com/DgNvuOd.jpg)
+
+## Reference data
+### DS18B20: detect **temperature**
+### DHT22: detect **Humidity** and temperature
+### SHARP GP2Y1014AU: detect **PM2.5** 
+[datasheet]([ref]http://download.kamami.pl/p563980-PMS3003%20series%20data%20manual_English_V2.5.pdf)
+### Gravity CCS811: detect **CO2** and **TVOC**
+[Gravity: CCS811 Air Quality Sensor SKU: SEN0318]([ref]https://wiki.dfrobot.com/Gravity:%20CCS811%20Air%20Quality%20Sensor%20SKU:%20SEN0318)
