@@ -4,7 +4,7 @@ import serial, pymysql.cursors
 
 COM_PORT = '/dev/ttyACM0' # linux device in /dev/ttyACM*
 # COM_PORT = 'COM1' # windows device name
-BAUD_RATES = 115200
+BAUD_RATES = 9600
 ser = serial.Serial(COM_PORT, BAUD_RATES)
 
 with open("AQDC.json", 'r') as f:
@@ -34,11 +34,15 @@ try:
                 # get CO2 and TVOC data_raw
                 CO2 = j_data['CCS811']['CO2']
                 TVOC = j_data['CCS811']['TVOC']
+                PM1 = j_data['PMS3003']['PM1']
+                PM2_5 = j_data['PMS3003']['PM2_5']
+                PM10 = j_data['PMS3003']['PM10']
 
             except json.decoder.JSONDecodeError:
                 continue
-            sql = "INSERT INTO sensor_data(temperture, humidity, CO2, TVOC)" + \
-                  "VALUES({0}, {1}, {2}, {3});".format(Temp, Humid, CO2, TVOC)
+            sql = "INSERT INTO sensor_data(temperture, humidity, CO2, TVOC, PM1, PM2_5, PM10)" + \
+                  "VALUES({0},{1},{2},{3},{4},{5},{6});".format(
+                      Temp, Humid, CO2, TVOC, PM1, PM2_5, PM10)
 
             #db.ping(reconnect=True)
             try:
@@ -55,7 +59,7 @@ try:
 
             db.close()
 
-            time.sleep(5*60)
+            time.sleep(60)
 
 
 
