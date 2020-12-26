@@ -2,11 +2,14 @@
 import time, json
 import serial, pymysql.cursors
 
+
+LOOP_SLEEP_TIME = 60     # set Loop sleep time in seconds
 COM_PORT = '/dev/ttyACM0' # linux device in /dev/ttyACM*
 # COM_PORT = 'COM1' # windows device name
 BAUD_RATES = 9600
 ser = serial.Serial(COM_PORT, BAUD_RATES)
 
+# load information for read & write database
 with open("AQDC.json", 'r') as f:
     jdata = json.load(f)
 
@@ -22,8 +25,8 @@ try:
             data_raw = ser.readline()
             data = data_raw.decode()
 
-            #print("data_raw: ", data_raw)
             print("data: ", data) # decomment if need to check data
+            
             # Parse json data
             try:
                 j_data = json.loads(data)
@@ -44,22 +47,23 @@ try:
                   "VALUES({0},{1},{2},{3},{4},{5},{6});".format(
                       Temp, Humid, CO2, TVOC, PM1, PM2_5, PM10)
 
-            #db.ping(reconnect=True)
             try:
                 db = pymysql.connect(host=HOST, user=USER, password=PW, db=DB,
                              cursorclass=pymysql.cursors.DictCursor)
                 cursor = db.cursor()
 
+                # ping() is used to reconnect database if it lost connection
                 db.ping(reconnect = True)
                 cursor.execute(sql)
                 db.commit()
+            # if sql fail to execute, print Exception and cancel INSERT
             except Exception as e:
                 print("sql execute Exception:", e)
                 db.rollback()
 
             db.close()
 
-            time.sleep(60)
+            time.sleep(LOOP_SLEEP_TIME)
 
 
 
