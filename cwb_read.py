@@ -10,7 +10,7 @@ LOG = "cwb_read.log"
 
 counter = 0
 udtCWB = 10 # update time for cwb: 10 min 
-wdCWB = True # writing data to cwb
+wdCWB = True # flag for forcing to write data into database
 
 
 with open("AQDC.json", 'r') as f:
@@ -33,7 +33,7 @@ needed_id = ['lat', 'lon', 'locationName',
             'Weather', 'CITY', 'TOWN']
 
 # store request url, include cwb key, do not upload!
-# curl -X GET "https://opendata.cwb.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=YOURKEY&stationId=467490" -H  "accept: application/json"
+# curl -X GET "https://opendata.cwb.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=[YOURKEY]&stationId=467490" -H  "accept: application/json"
 def getDataEPA(url, params, DEBUG = False):
     myDict = dict()
     # get data from airtw.epa
