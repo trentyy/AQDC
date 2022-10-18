@@ -2,9 +2,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-
-
 .venv
 AQDC.json
+AQDC-home.json
 *.log
 dev-env

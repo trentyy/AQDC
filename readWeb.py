@@ -3,6 +3,7 @@
 import traceback, time, json, asyncio
 from datetime import datetime
 import datetime as dt
+from urllib.error import HTTPError
 import requests
 import pymysql.cursors
 from loguru import logger
@@ -35,8 +36,7 @@ params_epa = jdata['airtw_epa']['params']
 needed_id = [
     'locationName', 
     'TEMP', 'HUMD', 'PRES',
-    'H_F10', 'H_UVI', 'lat', 'lon',
-    'Weather', 'CITY', 'TOWN',
+    'H_F10', 'H_UVI',
 ]
 
 # for print color
@@ -54,72 +54,69 @@ class bcolors:
 # store request url, include cwb key, do not upload!
 # curl -X GET "https://opendata.cwb.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=[YOURKEY]&stationId=467490" -H  "accept: application/json"
 
-async def main():
-    async def getDataEPA(url, params, DEBUG = False):
-        myDict = dict()
-        # get data from airtw.epa
-        print(f"{bcolors.HEADER}Asking for EPA data...{bcolors.ENDC}")
-        loop = asyncio.get_running_loop()
-        data = await loop.run_in_executor(
-            None, requests.get, url, params)
-
-        # dealing with request error
-        print(f"{bcolors.OKGREEN}data.status_code: {data.status_code}{bcolors.ENDC}")
+async def getDataEPA(url, params, DEBUG = False):
+    def getData(url, params):
+        data = requests.get(url, params)
+        logger.info(f"data.status_code: {data.status_code}")
         data.raise_for_status()
 
         data = data.text
-        # use json.loads() to parse data from string-version, will become type: dict
-        jdata = json.loads(data)
-        # print(jdata)
-
+        data = json.loads(data)
+        return data
+    
+    def parseData(jdata):
+        myDict = {}
         tmpList = jdata['records']
-        # parse data
+        
         for item in tmpList:
             if item['itemengname'] == 'PM2.5':
                 myDict['PM2_5'] = item['concentration']
-
-                t = item['monitordate']      # from Taipei to UTC
-                t = dt.datetime.fromisoformat(t)
-                t = t - dt.timedelta(hours=8)
-                myDict['time'] = t
             elif item['itemengname'] == 'PM10':
                 myDict['PM10'] = item['concentration']
+        t = item['monitordate']      # from Taipei to UTC
+        t = dt.datetime.fromisoformat(t)
+        t = t# - dt.timedelta(hours=8)
+        myDict['time'] = t
         return myDict
+        
+    logger.info("Asking for EPA data...")
+    data = getData(url, params)
+    myDict = parseData(data)
+    return myDict
 
-    async def getDataCWB(url, params, DEBUG = False):
-        myDict = dict()
-
+async def getDataCWB(url, params, DEBUG = False):
+    def getData(url, params):
         flag = True
         while(flag):
-
             # get data from cwb
-            print(f"{bcolors.HEADER}Asking for CWB data...{bcolors.ENDC}")
-            loop = asyncio.get_running_loop()
-            data = await loop.run_in_executor(
-                None, requests.get, url, params)
+            logger.info("Asking for CWB data...")
+            data = requests.get(url, params)
 
             # dealing with request error
-            print(f"{bcolors.OKGREEN}data.status_code: {data.status_code}{bcolors.ENDC}")
-            data.raise_for_status() 
-
+            logger.info(f"data.status_code: {data.status_code}")
+            try:
+                data.raise_for_status() 
+            except HTTPError:
+                time.sleep(60)
+                continue
             data = data.text
             # use json.loads() to parse data from string-version, will become type: dict
-            jdata = json.loads(data)
+            data = json.loads(data)
             # print("line 95, jdata:",jdata)
             # print("location len=",len(jdata['records']['location']))
-            if (len(jdata['records']['location'])!=0):
+            if (len(data['records']['location'])!=0):
                 flag = False
             else:
                 time.sleep(60)
+        return data
 
-        # jdata->records->location
-        # dealing with data
+    def parseData(jdata):
+        myDict = {}
         tmpList = jdata['records']['location'][0]
-
-        # parse data
+        
         t = tmpList['time']['obsTime']      # from Taipei to UTC
         t = dt.datetime.fromisoformat(t)
-        t = t - dt.timedelta(hours=8)
+        t = t# - dt.timedelta(hours=8)
 
         myDict['obsTime'] = t
         weatherElement = tmpList['weatherElement']
@@ -128,9 +125,6 @@ async def main():
         for item in tmpList.keys():
             if (item in needed_id):
                 myDict[item] = tmpList[item]
-
-        
-
         for item in weatherElement:
             tmpDic = dict(item)
             if (tmpDic['elementName'] == 'TEMP' and tmpDic['elementValue'] == -99):
@@ -139,15 +133,19 @@ async def main():
                 return None
             if (tmpDic['elementName'] in needed_id):
                 myDict[tmpDic['elementName']] = tmpDic['elementValue']
-
         for item in parameter:
             tmpDic = dict(item)
             if (tmpDic['parameterName'] in needed_id):
                 myDict[tmpDic['parameterName']] = tmpDic['parameterValue']
-        
-
+        # data process
         myDict['HUMD'] = float(myDict['HUMD']) * 100
         return myDict
+
+    data = getData(url, params)
+    myDict = parseData(data)
+    return myDict
+
+async def main():
     loop = asyncio.get_event_loop()
     counter = 0
     wdCWB = True
@@ -206,19 +204,27 @@ async def main():
                 db = pymysql.connect(host=HOST, user=USER, password=PW, db=DB,
                                 cursorclass=pymysql.cursors.DictCursor)
                 logger.info(cwb_dict)
+                tmp = "\',\'"
                 sql = (
                     "INSERT IGNORE INTO cwb_Taichung("
-                    ",".join([key for key in cwb_dict.keys()])
+                    f"{','.join([key for key in cwb_dict.keys()])}"
                     ")VALUES(\'"
-                    ",".join([value for value in cwb_dict.values()])
-                    ");")
+                    f"{tmp.join([str(value) for value in cwb_dict.values()])}"
+                    "');"
+                )
+                print(sql)
                 db.cursor().execute(sql)
                 db.commit()
                 logger.success(sql)
 
 
-                sql = "INSERT IGNORE INTO epa_Taichung( time, PM2_5, PM10)" + \
-                    f"VALUES(\'{epa_dict['time']}\', '\{epa_dict['PM2_5']}\', \'{epa_dict['PM10']}\');"
+                sql = (
+                    "INSERT IGNORE INTO epa_Taichung("
+                    f"{','.join([key for key in epa_dict.keys()])}"
+                    ")VALUES(\'"
+                    f"{tmp.join([str(value) for value in epa_dict.values()])}"
+                    "');"
+                )
                 db.cursor().execute(sql)
                 db.commit()
                 logger.success(sql)
@@ -228,12 +234,9 @@ async def main():
                 wdCWB = False
             except Exception as e:
                 logger.exception(e)
-                print(f"{bcolors.FAIL}Exception catched at 207{bcolors.ENDC}")
-
-                print(e)
-                await asyncio.sleep(60)
+                time.sleep(90)
                 continue
         await asyncio.sleep(60)
+
 if __name__ == '__main__':
     asyncio.run(main())
-
