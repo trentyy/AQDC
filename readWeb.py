@@ -128,8 +128,10 @@ async def getDataCWB(url, params, DEBUG = False):
         for item in weatherElement:
             tmpDic = dict(item)
             if (tmpDic['elementName'] == 'TEMP' and tmpDic['elementValue'] == -99):
+                logger.info("TEMP = -99, ignore")
                 return None
             elif (tmpDic['elementName'] == 'HUMD' and tmpDic['elementValue'] == -9900):
+                logger.info("HUMD = -9900, ignore")
                 return None
             if (tmpDic['elementName'] in needed_id):
                 myDict[tmpDic['elementName']] = tmpDic['elementValue']
@@ -160,43 +162,37 @@ async def main():
                 if (cwb_dict == None):
                     continue
             except UnicodeDecodeError:
-                print("cwb_dict: ", cwb_dict)
-                print(f"{bcolors.WARNING}UnicodeDecodeError, continue{bcolors.ENDC}")
+                logger.error(f"[UnicodeDecodeError] cwb_dict: {cwb_dict}")
             except json.decoder.JSONDecodeError:
-                print("cwb_dict: ", cwb_dict)
-                print(f"{bcolors.WARNING}JSONDecodeError, continue{bcolors.ENDC}")
+                logger.error(f"[JSONDecodeError] cwb_dict: {cwb_dict}")
             except pymysql.err.OperationalError:
-                traceback.print_exc()
-                print("pymysql.err.OperationalError, sleep 1 min and continue")
+                logger.exception("pymysql.err.OperationalError, sleep 1 min and continue")
+                await asyncio.sleep(60)
+                continue
             except (requests.exceptions.HTTPError, NewConnectionError) as e:
-                traceback.print_exc()
                 logger.exception(e)
                 await asyncio.sleep(60)
                 continue
             except Exception as e:
                 logger.exception(e)
-                traceback.print_exc()
                 await asyncio.sleep(60)
                 continue
 
             try:
                 epa_dict = await getDataEPA(url_epa, params_epa)
             except UnicodeDecodeError:
-                print("epa_dict: ", epa_dict)
-                print(f"{bcolors.WARNING}UnicodeDecodeError, continue{bcolors.ENDC}")
+                logger.error(f"[UnicodeDecodeError] epa_dict: {epa_dict}")
             except json.decoder.JSONDecodeError:
-                print("epa_dict: ", epa_dict)
-                print(f"{bcolors.WARNING}JSONDecodeError, continue{bcolors.ENDC}")
+                logger.error(f"[JSONDecodeError] epa_dict: {epa_dict}")
             except pymysql.err.OperationalError:
-                traceback.print_exc()
-                print("pymysql.err.OperationalError, sleep 1 min and continue")
+                logger.exception("pymysql.err.OperationalError, sleep 1 min and continue")
+                await asyncio.sleep(60)
             except (requests.exceptions.HTTPError, NewConnectionError) as e:
                 traceback.print_exc()
                 await asyncio.sleep(60)
                 continue
             except Exception as e:
                 logger.exception(e)
-                traceback.print_exc()
                 await asyncio.sleep(60)
                 continue
                 
@@ -212,7 +208,6 @@ async def main():
                     f"{tmp.join([str(value) for value in cwb_dict.values()])}"
                     "');"
                 )
-                print(sql)
                 db.cursor().execute(sql)
                 db.commit()
                 logger.success(sql)
