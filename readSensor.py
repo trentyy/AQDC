@@ -1,13 +1,12 @@
 #!/usr/bin/python3
 
 import traceback, time, json
-import datetime as dt
 import serial
 import pymysql.cursors
 from loguru import logger
 
 # log file name
-LOG = "readSensor.log"
+trace = logger.add("./log/readSensor.log", rotation="monthly", encoding="utf-8", enqueue=True, retention="1 year")
 
 COM_PORT = '/dev/ttyACM0'
 BAUD_RATE = 9600
@@ -26,7 +25,6 @@ con=pymysql.connect(host=HOST, user=USER, passwd=PW, db=DB)
 
 counter = 0
 
-f = open(LOG, 'a')
 while True:
     try:
         counter += 1

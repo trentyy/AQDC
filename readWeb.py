@@ -2,7 +2,6 @@
 
 import traceback, time, json, asyncio
 from datetime import datetime
-import datetime as dt
 from urllib.error import HTTPError
 import requests
 import pymysql.cursors
@@ -11,13 +10,10 @@ from loguru import logger
 from urllib3.exceptions import NewConnectionError
 
 # log file name
-LOG = "readWeb.log"
-trace = logger.add("./readWeb.log",rotation="10MB", encoding="utf-8", enqueue=True, retention="30 days"
-)
+trace = logger.add("./log/readWeb.log", rotation="monthly", encoding="utf-8", enqueue=True, retention="1 year")
 counter = 0
 udtCWB = 10 # update time for cwb: 10 min 
 wdCWB = True # flag for forcing to write data into database
-
 
 with open("AQDC-home.json", 'r') as f:
     jdata = json.load(f)
@@ -57,7 +53,8 @@ class bcolors:
 async def getDataEPA(url, params, DEBUG = False):
     def getData(url, params):
         data = requests.get(url, params)
-        logger.info(f"data.status_code: {data.status_code}")
+        if data.status_code != 200:
+            logger.info(f"data.status_code: {data.status_code}")
         data.raise_for_status()
 
         data = data.text
@@ -74,12 +71,11 @@ async def getDataEPA(url, params, DEBUG = False):
             elif item['itemengname'] == 'PM10':
                 myDict['PM10'] = item['concentration']
         t = item['monitordate']      # from Taipei to UTC
-        t = dt.datetime.fromisoformat(t)
+        t = datetime.fromisoformat(t)
         t = t# - dt.timedelta(hours=8)
         myDict['time'] = t
         return myDict
         
-    logger.info("Asking for EPA data...")
     data = getData(url, params)
     myDict = parseData(data)
     return myDict
@@ -89,11 +85,11 @@ async def getDataCWB(url, params, DEBUG = False):
         flag = True
         while(flag):
             # get data from cwb
-            logger.info("Asking for CWB data...")
             data = requests.get(url, params)
 
             # dealing with request error
-            logger.info(f"data.status_code: {data.status_code}")
+            if data.status_code != 200:
+                logger.info(f"data.status_code: {data.status_code}")
             try:
                 data.raise_for_status() 
             except HTTPError:
@@ -115,7 +111,7 @@ async def getDataCWB(url, params, DEBUG = False):
         tmpList = jdata['records']['location'][0]
         
         t = tmpList['time']['obsTime']      # from Taipei to UTC
-        t = dt.datetime.fromisoformat(t)
+        t = datetime.fromisoformat(t)
         t = t# - dt.timedelta(hours=8)
 
         myDict['obsTime'] = t
@@ -154,7 +150,7 @@ async def main():
     while True:
         counter += 1
         if (counter >= udtCWB or wdCWB):
-            print(f"{bcolors.OKBLUE}{dt.datetime.now()}{bcolors.ENDC}")
+            print(f"{bcolors.OKBLUE}{datetime.now()}{bcolors.ENDC}")
             sql = ""
             
             try:
@@ -199,7 +195,6 @@ async def main():
             try:
                 db = pymysql.connect(host=HOST, user=USER, password=PW, db=DB,
                                 cursorclass=pymysql.cursors.DictCursor)
-                logger.info(cwb_dict)
                 tmp = "\',\'"
                 sql = (
                     "INSERT IGNORE INTO cwb_Taichung("
