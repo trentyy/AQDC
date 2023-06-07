@@ -11,6 +11,7 @@ In order to keep tracking the air quality such as CO2( which will make people dr
 ### Data collector:
 
 * Arduino Uno
+* Raspberry Pi 4 for Raspberry Pi Camera 2(new)
 
 ### Sensor:
 
@@ -18,45 +19,49 @@ In order to keep tracking the air quality such as CO2( which will make people dr
 * DHT22: detect **Humidity** and temperature
 * SHARP GP2Y1014AU: detect **PM2.5** 
 * Gravity CCS811: detect **CO2** and **TVOC**
+* Raspberry Pi Camera 2(for the power consumption of extension cord)
 
 ## Software:
-* Raspberry Pi:
-    * mosquitto, mosquitto-client ([ref](https://blog.gtwang.org/iot/raspberry-pi/raspberry-pi-mosquitto-mqtt-broker-iot-integration/))
 ## Libraries:
-
 * Raspberry Pi:
     * pyserial
     * arduino
     * arduino-mk
 * Arduino:
   * [pusubclient](https://github.com/knolleary/pubsubclient)
-
-## Workflow:
-
-### Part1: Website
-
-<img src="C:\Users\Trent-Local\Downloads\螢幕擷取畫面 2020-09-18 194655.png" style="zoom:75%;" />
-
-### Part2: Collect Data
-
-![](C:\Users\Trent-Local\Downloads\螢幕擷取畫面 2020-09-18 194708.png" style="zoom:75%;" )
+  * [ArduinoJson](https://arduinojson.org/)
+  * DFRobot_CCS811
+  * DallasTemperature
+  * OneWire
+  * DHT
+  * PMS
+  * SoftwareSerial
 
 ## Working Goals:
+to show the data collected from local and opensourse website and manage a way to show them
+
+## Workflow:
+1. Collect data from local, and save them into db
+2. Collect data from web, and save them into db
+3. show the data by grafana, let me check it by internet
+4. show the data by local screen, let me check it in my room
+
+### Long-term Goals:
+- [] Add a local e-ink screen
+- [] Add co2 sensor
+- [] Add power consumption data of extension cord
 
 ### Short-term Goals:
+- [] Read extension cord data by seven segment LED
+- [] Find a way to control e-ink screen
+  - [] try c
+  - [x] try microPython
 
-- [x] Let "THE monitor"(my pre-project which can send data to thingSpeak server to show data) can sent data to my Raspberry Pi server.
-- [x] Establish database in my Raspberry Pi server.
-- [x] Run myscript.service right after server booting to automatic start collecting and saving data.
-### Long-term Goals:
-
-* Show data by graph or gauge on server website.
-* Move my website from local network to Internet!
-## API
+## Used API
 * air quality (pm2.5) https://data.epa.gov.tw/
 * weather https://opendata.cwb.gov.tw/
 ## Pin
-![G3 3003](https://i.imgur.com/DgNvuOd.jpg)
+
 
 ## Reference data
 ### DS18B20: detect **temperature**
