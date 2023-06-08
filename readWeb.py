@@ -123,10 +123,10 @@ async def getDataCWB(url, params, DEBUG = False):
                 myDict[item] = tmpList[item]
         for item in weatherElement:
             tmpDic = dict(item)
-            if (tmpDic['elementName'] == 'TEMP' and tmpDic['elementValue'] == -99):
+            if (tmpDic['elementName'] == 'TEMP' and float(tmpDic['elementValue']) == -99):
                 logger.info("TEMP = -99, ignore")
                 return None
-            elif (tmpDic['elementName'] == 'HUMD' and tmpDic['elementValue'] == -9900):
+            elif (tmpDic['elementName'] == 'HUMD' and float(tmpDic['elementValue']) == -9900):
                 logger.info("HUMD = -9900, ignore")
                 return None
             if (tmpDic['elementName'] in needed_id):

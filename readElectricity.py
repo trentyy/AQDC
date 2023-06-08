@@ -10,13 +10,14 @@ from picamera import PiCamera
 from time import sleep
 import RPi.GPIO as GPIO
 
+import os
 from PIL import Image
 import numpy as np
 import pytesseract
 import cv2
 import matplotlib.pyplot as plt
 
-DEBUG = False
+DEBUG = True
 
 PWM_FREQ = 50
 vServoPIN = 12
@@ -53,7 +54,7 @@ def capture_pic(move=True):
             hPWM.stop()
 
         camera = PiCamera()
-        # camera.iso = 200
+        camera.iso = 500
         camera.vflip = True
         camera.hflip = True
         camera.start_preview()
@@ -170,6 +171,27 @@ def preProcess(filename = './test.jpg', alpha = 3, beta = 1):
     binary = cv2.erode(binary, kernel, iterations=1)
 
     ret, binary = cv2.threshold(binary, 240, 255, cv2.THRESH_BINARY)
+    if DEBUG:
+        demo_img = origin_array.copy()
+        plt.subplot(121)
+        plt.imshow(binary, cmap="gray")
+        
+        contour, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        for cnt in contour:
+            x, y, w, h = cv2.boundingRect(cnt)
+            cv2.rectangle(demo_img, (x, y), (x+w, y+h), (0, 255, 0), 5)
+            num, detect_area = ssRead(binary, x, y, w, h)
+            for i in range(detect_area.shape[0]):
+                for j in range(detect_area.shape[1]):
+                    if detect_area[i][j]:
+                        demo_img[i][j][0] = 0
+                        demo_img[i][j][1] = 0
+                        demo_img[i][j][2] = 200
+        plt.subplot(122)
+        plt.imshow(demo_img)
+        plt.savefig("".join(filename.split(".jpg")[:-1])+"after_preProcess.jpg", dpi=300)
+
     return binary
 
 def readVA(binary):
@@ -183,11 +205,14 @@ def readVA(binary):
     result = sorted(result, key=lambda x: x[2])
     V = result[:3]
     A = result[3:]
-    V = sorted(V, key=lambda x: x[1])
-    A = sorted(A, key=lambda x: x[1])
-    V = "".join([str(x[0]) for x in V])
-    A = "".join([str(x[0]) for x in A])
-    V, A = int(V), int(A)/10
+    try:
+        V = sorted(V, key=lambda x: x[1])
+        A = sorted(A, key=lambda x: x[1])
+        V = "".join([str(x[0]) for x in V])
+        A = "".join([str(x[0]) for x in A])
+        V, A = int(V), int(A)/10
+    except ValueError as e:
+        raise e
 
     return V, A
 
@@ -211,16 +236,19 @@ if __name__ == "__main__":
     while True:
         try:
             filename = capture_pic(move=False)
-            img = preProcess(filename, alpha=2, beta=10)
+            img = preProcess(filename, alpha=3, beta=1)
             V, A = readVA(img)
+            if A < 7:
+                os.remove(filename)
+                os.remove("".join(filename.split(".jpg")[:-1])+"after_preProcess.jpg")
 
             # prepare date to store
-            curtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            curtime = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
             data = {"time": curtime,
                     "Voltage": V,
                     "Ampere": A}
             sql = "INSERT INTO `home_electricity`(`time`,`Voltage`,`Ampere`)"
-            sql += f" VALUES ({curtime},{V},{A})"
+            sql += f" VALUES ('{curtime}',{V},{A})"
 
             con.ping(reconnect=True)
 
@@ -232,5 +260,7 @@ if __name__ == "__main__":
             con.commit()
             logger.success(sql)
             sleep(60)
+        except ValueError as e:
+            logger.debug(e)
         except Exception as e:
             raise e
