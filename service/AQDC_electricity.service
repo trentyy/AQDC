@@ -1,9 +1,9 @@
 [Unit]
-Description=AQDC get data from Arduino
+Description=AQDC get data from picamera for power consumption
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 -u readSensor.py
+ExecStart=/usr/bin/python3 -u readElectricity.py
 WorkingDirectory=/home/pi/Github/AQDC
 StandardError=inherit
 Restart=always

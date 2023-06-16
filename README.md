@@ -1,6 +1,6 @@
 # Air Quality Data Collector
 
-In order to keep tracking the air quality such as CO2( which will make people drowsy), TVOC (Total Volatile Organic Compounds, which might damage people's health), temperature, humidity to make people feel more comfortable in the room. I want to build a data center, like raspberry pi, to collect data from types of sensors and plot these data in a website, also I want to compare these data with outside weather by the collected data from the government.
+In order to keep tracking the air quality such as CO2( which will make people drowsy), TVOC (Total Volatile Organic Compounds, which might damage people's health), temperature, humidity to make people feel more comfortable in the room. I want to build a data center, to collect data from types of sensors and plot these data in a website, also I want to compare these data with outside weather by the collected data from the government.
 
 ## Hardware
 
@@ -57,10 +57,16 @@ to show the data collected from local and opensourse website and manage a way to
   - [] try c
   - [x] try microPython
 
+### To-Do List
+1. Reduce failed reading
+2. Move functions into a package
+3. Merge `readElectricity.py` into `readSensor.py` using `asycio` library
+
 ## Used API
 * air quality (pm2.5) https://data.epa.gov.tw/
 * weather https://opendata.cwb.gov.tw/
-## Pin
+## issue
+shutter speed too slow, sometimes there will be a afterimage -> trying to speed up and change some pre-process parameter to keep image reading quality
 
 
 ## Reference data

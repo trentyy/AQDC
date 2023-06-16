@@ -1,10 +1,10 @@
 [Unit]
-Description=Get air quality data from web
+Description=AQDC to get cwb data
 After=network.target
 
 [Service]
 ExecStart=/usr/bin/python3 -u readWeb.py
-WorkingDirectory=/home/pi/AQDC
+WorkingDirectory=/home/pi/Github/AQDC
 StandardOutput=inherit
 StandardError=inherit
 Restart=always

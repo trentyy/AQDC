@@ -147,14 +147,17 @@ def ssRead(src, x, y, w, h, p=3):
         ratio = 0.9
         if np.sum(np.array(src * mask, dtype=bool)) > ratio:
             return 1, sum_mask
+        else:
+            print("detect 1: ratio=", ratio)
         
     # deal with normal situation
-    if DEBUG: print(f"[debug] ss_status:{ss_status}")
+    # if DEBUG: print(f"ss_status:{ss_status}")
     for k, v in ss_decimal.items():
         if (ss_status == v).all():
             return int(k), sum_mask
     else:
-        return -1, sum_mask
+        logger.error(f"ss_status={ss_status}, didn't fit to any pattern")
+        raise ValueError
 
 def preProcess(filename = './test.jpg', alpha = 3, beta = 1):
     
@@ -233,14 +236,21 @@ con=pymysql.connect(host=HOST, user=USER, passwd=PW, db=DB)
 counter = 0
 
 if __name__ == "__main__":
+    double_check = True
     while True:
         try:
             filename = capture_pic(move=False)
-            img = preProcess(filename, alpha=3, beta=1)
+            img = preProcess(filename, alpha=2, beta=1)
             V, A = readVA(img)
+            # save fig for debug
             if A < 7:
+                double_check = True
                 os.remove(filename)
                 os.remove("".join(filename.split(".jpg")[:-1])+"after_preProcess.jpg")
+            elif (double_check):
+                double_check = False
+                continue
+
 
             # prepare date to store
             curtime = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
@@ -263,4 +273,5 @@ if __name__ == "__main__":
         except ValueError as e:
             logger.debug(e)
         except Exception as e:
+            print(sql)
             raise e
