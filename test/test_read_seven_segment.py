@@ -33,7 +33,7 @@ def ang2dc(angle: int):
     y = (angle - xmin) * (ymax - ymin) / (xmax - xmin) + ymin
     return y * 5 # y/20(ms)*100
 
-def capture_pic(path="./pic", move=True):
+def capture_pic(path="../pic", move=True):
     filename = ""
     try:
         if move:
@@ -156,8 +156,8 @@ def ssRead(src, x, y, w, h, p=3):
         return -1, sum_mask
 
 
-# filename = './test.jpg'
-filename = capture_pic(path="../pic/", move=False)
+filename = '../pic/2023-06-24T11:09:51.507867.jpg'
+# filename = capture_pic(path="../pic/", move=False)
 img = Image.open(filename)
 origin_array = np.asarray(img)[280:580, 700:1000]
 

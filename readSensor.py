@@ -38,6 +38,7 @@ while True:
             DS18B20 = jdata["DS18B20"]
             DHT22 = jdata["DHT22"]
             PMS7003 = jdata["PMS7003"]
+            MHZ19B = jdata["MHZ19B"]
 
             curtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             
@@ -47,11 +48,15 @@ while True:
             
             sql1 = "INSERT INTO `home_dht22`(`time`,`temperature`,`humidity`)"
             sql1 += " VALUES (%s,%s,%s)"
-            print(sql1, (curtime,DHT22["Temperature"], DHT22["Humidity"]))
+            print(sql1, (curtime, DHT22["Temperature"], DHT22["Humidity"]))
 
             sql2 = "INSERT INTO `home_pms7003`(`time`,`pm1`,`pm2_5`,`pm10`)"
             sql2 += " VALUES (%s,%s,%s,%s)"
-            print(sql2, (curtime,PMS7003["PM1"],PMS7003["PM2_5"],PMS7003["PM10"]))
+            print(sql2, (curtime, PMS7003["PM1"],PMS7003["PM2_5"],PMS7003["PM10"]))
+
+            sql3 = "INSERT INTO `home_mhz19b`(`time`,`temperature`,`co2`)"
+            sql3 += " VALUES (%s,%s,%s)"
+            print(sql3, (curtime, MHZ19B["Temperature"], MHZ19B["CO2"]))
             
             con.ping(reconnect=True)
 
@@ -70,6 +75,10 @@ while True:
                 for key, value in PMS7003.items():
                     if value == None:   isNone = True
                 if not isNone:  cur.execute(sql2, (curtime,PMS7003["PM1"],PMS7003["PM2_5"],PMS7003["PM10"]))
+                isNone = False
+                for key, value in MHZ19B.items():
+                    if value == None:   isNone = True
+                if not isNone:  cur.execute(sql3, (curtime, MHZ19B["Temperature"], MHZ19B["CO2"]))
             con.commit()
             logger.success("update success")
             """

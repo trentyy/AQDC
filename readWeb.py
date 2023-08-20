@@ -197,7 +197,7 @@ async def main():
                                 cursorclass=pymysql.cursors.DictCursor)
                 tmp = "\',\'"
                 sql = (
-                    "INSERT IGNORE INTO cwb_Taichung("
+                    "INSERT IGNORE INTO cwb_Nangang("
                     f"{','.join([key for key in cwb_dict.keys()])}"
                     ")VALUES(\'"
                     f"{tmp.join([str(value) for value in cwb_dict.values()])}"
@@ -209,7 +209,7 @@ async def main():
 
 
                 sql = (
-                    "INSERT IGNORE INTO epa_Taichung("
+                    "INSERT IGNORE INTO epa_Taipei("
                     f"{','.join([key for key in epa_dict.keys()])}"
                     ")VALUES(\'"
                     f"{tmp.join([str(value) for value in epa_dict.values()])}"

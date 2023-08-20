@@ -54,7 +54,7 @@ def capture_pic(move=True):
             hPWM.stop()
 
         camera = PiCamera()
-        camera.iso = 500
+        camera.iso = 200
         camera.vflip = True
         camera.hflip = True
         camera.start_preview()
@@ -149,11 +149,14 @@ def ssRead(src, x, y, w, h, p=3):
             return 1, sum_mask
         else:
             print("detect 1: ratio=", ratio)
+    else:
+        print(f"w / h={w / h}")
         
     # deal with normal situation
     # if DEBUG: print(f"ss_status:{ss_status}")
     for k, v in ss_decimal.items():
         if (ss_status == v).all():
+            print(f"detect result={int(k)}")
             return int(k), sum_mask
     else:
         logger.error(f"ss_status={ss_status}, didn't fit to any pattern")
@@ -175,25 +178,29 @@ def preProcess(filename = './test.jpg', alpha = 3, beta = 1):
 
     ret, binary = cv2.threshold(binary, 240, 255, cv2.THRESH_BINARY)
     if DEBUG:
-        demo_img = origin_array.copy()
-        plt.subplot(121)
-        plt.imshow(binary, cmap="gray")
-        
-        contour, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        for cnt in contour:
-            x, y, w, h = cv2.boundingRect(cnt)
-            cv2.rectangle(demo_img, (x, y), (x+w, y+h), (0, 255, 0), 5)
-            num, detect_area = ssRead(binary, x, y, w, h)
-            for i in range(detect_area.shape[0]):
-                for j in range(detect_area.shape[1]):
-                    if detect_area[i][j]:
-                        demo_img[i][j][0] = 0
-                        demo_img[i][j][1] = 0
-                        demo_img[i][j][2] = 200
-        plt.subplot(122)
-        plt.imshow(demo_img)
-        plt.savefig("".join(filename.split(".jpg")[:-1])+"after_preProcess.jpg", dpi=300)
+        try:
+            demo_img = origin_array.copy()
+            
+            contour, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for cnt in contour:
+                x, y, w, h = cv2.boundingRect(cnt)
+                cv2.rectangle(demo_img, (x, y), (x+w, y+h), (0, 255, 0), 5)
+                num, detect_area = ssRead(binary, x, y, w, h)
+                for i in range(detect_area.shape[0]):
+                    for j in range(detect_area.shape[1]):
+                        if detect_area[i][j]:
+                            demo_img[i][j][0] = 0
+                            demo_img[i][j][1] = 0
+                            demo_img[i][j][2] = 200
+            
+        except ValueError as e:
+            plt.subplot(121)
+            plt.imshow(binary, cmap="gray")
+            plt.subplot(122)
+            plt.imshow(demo_img)
+            plt.savefig("".join(filename.split(".jpg")[:-1])+"after_preProcess.jpg", dpi=300)
+            raise ValueError
 
     return binary
 
@@ -240,13 +247,12 @@ if __name__ == "__main__":
     while True:
         try:
             filename = capture_pic(move=False)
-            img = preProcess(filename, alpha=2, beta=1)
+            img = preProcess(filename, alpha=4, beta=1)
             V, A = readVA(img)
             # save fig for debug
             if A < 7:
                 double_check = True
                 os.remove(filename)
-                os.remove("".join(filename.split(".jpg")[:-1])+"after_preProcess.jpg")
             elif (double_check):
                 double_check = False
                 continue
