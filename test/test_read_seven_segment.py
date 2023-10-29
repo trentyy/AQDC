@@ -88,63 +88,117 @@ def ssRead(src, x, y, w, h, p=3):
     else:
         return -1, sum_mask
 
-filename = './test.jpg'
-img = Image.open(filename)
-origin_array = np.asarray(img)
+def preProcess(filename = './test.jpg', alpha = 2, beta = 1):
+    
+    img = Image.open(filename)
 
-plt.subplot(231)
-plt.imshow(origin_array)
+    origin_array = np.asarray(img)
 
-# step 1: gain the origin picture
-alpha = 2
-beta = 1
-convertScaleAbs_img =  cv2.convertScaleAbs(origin_array, alpha=alpha, beta=beta)
-plt.subplot(232)
-plt.imshow(convertScaleAbs_img)
+    convertScaleAbs_img =  cv2.convertScaleAbs(origin_array, alpha=alpha, beta=beta)
 
-# step 2: convert picture from RGB to gray
-gray_img = cv2.cvtColor(convertScaleAbs_img, cv2.COLOR_RGB2GRAY)
-plt.subplot(233)
-plt.imshow(gray_img, cmap="gray")
+    gray_img = cv2.cvtColor(convertScaleAbs_img, cv2.COLOR_RGB2GRAY)
 
-# step 5: convert to binary
-kernel = np.ones((5, 5), np.uint8)
-binary = cv2.dilate(gray_img, kernel, iterations=2)
-binary = cv2.erode(binary, kernel, iterations=1)
+    kernel = np.ones((5, 5), np.uint8)
+    binary = cv2.dilate(gray_img, kernel, iterations=2)
+    binary = cv2.erode(binary, kernel, iterations=1)
 
-ret, binary = cv2.threshold(binary, 240, 255, cv2.THRESH_BINARY)
-plt.subplot(234)
-plt.imshow(binary, cmap="gray")
+    ret, binary = cv2.threshold(binary, 240, 255, cv2.THRESH_BINARY)
+    return binary
 
-# step 6: read the number by contours
-contour, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+def readVA(binary):
+    contour, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    result = []
+    for cnt in contour:
+        x, y, w, h = cv2.boundingRect(cnt)
+        num, detect_area = ssRead(binary, x, y, w, h)
+        result.append((num, x, y))
+    
+    result = sorted(result, key=lambda x: x[2])
+    V = result[:3]
+    A = result[3:]
+    V = sorted(V, key=lambda x: x[1])
+    A = sorted(A, key=lambda x: x[1])
+    V = "".join([str(x[0]) for x in V])
+    A = "".join([str(x[0]) for x in A])
+    V, A = int(V), int(A)/10
 
-print(f"countour number:{np.size(contour)}")
-print(f"hierarchy:{hierarchy}")
+    return V, A
 
-# let contour frame fade out to check order
-demo_img = origin_array.copy()
-i = 0
-for cnt in contour:
-    i += 1
-    x, y, w, h = cv2.boundingRect(cnt)
-    cv2.rectangle(demo_img, (x, y), (x+w, y+h), (0, 255-255*i/len(contour), 0), 5)
+if __name__ == "__main__":
+    filename = './test.jpg'
+    img = Image.open(filename)
 
-# show the detect area
-for cnt in contour:
-    i += 1
-    x, y, w, h = cv2.boundingRect(cnt)
-    cv2.rectangle(binary, (x, y), (x+w, y+h), (0, 1, 0), 5)
-    num, detect_line = ssRead(binary, x, y, w, h)
-    print("num, x, y, w, h:", num, x, y, w, h)
-    for i in range(detect_line.shape[0]):
-        for j in range(detect_line.shape[1]):
-            if detect_line[i][j]:
-                demo_img[i][j][0] = 0
-                demo_img[i][j][1] = 0
-                demo_img[i][j][2] = 200
+    origin_array = np.asarray(img)
 
-plt.subplot(235)
-plt.imshow(demo_img)
-plt.savefig("test_result.jpg", dpi=300)
-plt.show()
+    plt.subplot(231)
+    plt.imshow(origin_array)
+
+    # step 1: gain the origin picture
+    alpha = 2
+    beta = 1
+    convertScaleAbs_img =  cv2.convertScaleAbs(origin_array, alpha=alpha, beta=beta)
+    plt.subplot(232)
+    plt.imshow(convertScaleAbs_img)
+
+    # step 2: convert picture from RGB to gray
+    gray_img = cv2.cvtColor(convertScaleAbs_img, cv2.COLOR_RGB2GRAY)
+    plt.subplot(233)
+    plt.imshow(gray_img, cmap="gray")
+
+    # step 5: convert to binary
+    kernel = np.ones((5, 5), np.uint8)
+    binary = cv2.dilate(gray_img, kernel, iterations=2)
+    binary = cv2.erode(binary, kernel, iterations=1)
+
+    ret, binary = cv2.threshold(binary, 240, 255, cv2.THRESH_BINARY)
+    plt.subplot(234)
+    plt.imshow(binary, cmap="gray")
+
+    # step 6: read the number by contours
+    contour, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    print(f"countour number:{np.size(contour)}")
+    print(f"hierarchy:{hierarchy}")
+
+    # let contour frame fade out to check order
+    demo_img = origin_array.copy()
+    i = 0
+    for cnt in contour:
+        i += 1
+        x, y, w, h = cv2.boundingRect(cnt)
+        cv2.rectangle(demo_img, (x, y), (x+w, y+h), (0, 255-255*i/len(contour), 0), 5)
+
+    # read number and show the detect area
+    result = []
+    for cnt in contour:
+        i += 1
+        x, y, w, h = cv2.boundingRect(cnt)
+        cv2.rectangle(binary, (x, y), (x+w, y+h), (0, 1, 0), 5)
+        num, detect_area = ssRead(binary, x, y, w, h)
+        result.append((num, x, y))
+        print("num, x, y, w, h:", num, x, y, w, h)
+        for i in range(detect_area.shape[0]):
+            for j in range(detect_area.shape[1]):
+                if detect_area[i][j]:
+                    demo_img[i][j][0] = 0
+                    demo_img[i][j][1] = 0
+                    demo_img[i][j][2] = 200
+
+    plt.subplot(235)
+    plt.imshow(demo_img)
+    plt.savefig("test_result.jpg", dpi=300)
+    plt.show()
+
+    # sort output digit by x, y
+
+    result = sorted(result, key=lambda x: x[2])
+    print("first sort:", result)
+    V = result[:3]
+    A = result[3:]
+    V = sorted(V, key=lambda x: x[1])
+    A = sorted(A, key=lambda x: x[1])
+    print("second sort:", V, A)
+    V = "".join([str(x[0]) for x in V])
+    A = "".join([str(x[0]) for x in A])
+
+    print(f"V= {int(V)}, A={int(A)/10}")

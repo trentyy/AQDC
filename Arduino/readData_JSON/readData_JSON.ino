@@ -5,6 +5,7 @@
 #include <DHT.h>
 #include "PMS.h"
 #include <SoftwareSerial.h>
+#include "MHZ19.h"   
 
 #define ONE_WIRE_BUS 2
 #define DHT_PIN 3
