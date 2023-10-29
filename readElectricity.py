@@ -10,13 +10,14 @@ from picamera import PiCamera
 from time import sleep
 import RPi.GPIO as GPIO
 
+import os
 from PIL import Image
 import numpy as np
 import pytesseract
 import cv2
 import matplotlib.pyplot as plt
 
-DEBUG = False
+DEBUG = True
 
 PWM_FREQ = 50
 vServoPIN = 12
@@ -53,7 +54,7 @@ def capture_pic(move=True):
             hPWM.stop()
 
         camera = PiCamera()
-        # camera.iso = 200
+        camera.iso = 200
         camera.vflip = True
         camera.hflip = True
         camera.start_preview()
@@ -146,14 +147,20 @@ def ssRead(src, x, y, w, h, p=3):
         ratio = 0.9
         if np.sum(np.array(src * mask, dtype=bool)) > ratio:
             return 1, sum_mask
+        else:
+            print("detect 1: ratio=", ratio)
+    else:
+        print(f"w / h={w / h}")
         
     # deal with normal situation
-    if DEBUG: print(f"[debug] ss_status:{ss_status}")
+    # if DEBUG: print(f"ss_status:{ss_status}")
     for k, v in ss_decimal.items():
         if (ss_status == v).all():
+            print(f"detect result={int(k)}")
             return int(k), sum_mask
     else:
-        return -1, sum_mask
+        logger.error(f"ss_status={ss_status}, didn't fit to any pattern")
+        raise ValueError
 
 def preProcess(filename = './test.jpg', alpha = 3, beta = 1):
     
@@ -170,6 +177,31 @@ def preProcess(filename = './test.jpg', alpha = 3, beta = 1):
     binary = cv2.erode(binary, kernel, iterations=1)
 
     ret, binary = cv2.threshold(binary, 240, 255, cv2.THRESH_BINARY)
+    if DEBUG:
+        try:
+            demo_img = origin_array.copy()
+            
+            contour, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for cnt in contour:
+                x, y, w, h = cv2.boundingRect(cnt)
+                cv2.rectangle(demo_img, (x, y), (x+w, y+h), (0, 255, 0), 5)
+                num, detect_area = ssRead(binary, x, y, w, h)
+                for i in range(detect_area.shape[0]):
+                    for j in range(detect_area.shape[1]):
+                        if detect_area[i][j]:
+                            demo_img[i][j][0] = 0
+                            demo_img[i][j][1] = 0
+                            demo_img[i][j][2] = 200
+            
+        except ValueError as e:
+            plt.subplot(121)
+            plt.imshow(binary, cmap="gray")
+            plt.subplot(122)
+            plt.imshow(demo_img)
+            plt.savefig("".join(filename.split(".jpg")[:-1])+"after_preProcess.jpg", dpi=300)
+            raise ValueError
+
     return binary
 
 def readVA(binary):
@@ -183,11 +215,14 @@ def readVA(binary):
     result = sorted(result, key=lambda x: x[2])
     V = result[:3]
     A = result[3:]
-    V = sorted(V, key=lambda x: x[1])
-    A = sorted(A, key=lambda x: x[1])
-    V = "".join([str(x[0]) for x in V])
-    A = "".join([str(x[0]) for x in A])
-    V, A = int(V), int(A)/10
+    try:
+        V = sorted(V, key=lambda x: x[1])
+        A = sorted(A, key=lambda x: x[1])
+        V = "".join([str(x[0]) for x in V])
+        A = "".join([str(x[0]) for x in A])
+        V, A = int(V), int(A)/10
+    except ValueError as e:
+        raise e
 
     return V, A
 
@@ -208,19 +243,28 @@ con=pymysql.connect(host=HOST, user=USER, passwd=PW, db=DB)
 counter = 0
 
 if __name__ == "__main__":
+    double_check = True
     while True:
         try:
             filename = capture_pic(move=False)
-            img = preProcess(filename, alpha=2, beta=10)
+            img = preProcess(filename, alpha=4, beta=1)
             V, A = readVA(img)
+            # save fig for debug
+            if A < 7:
+                double_check = True
+                os.remove(filename)
+            elif (double_check):
+                double_check = False
+                continue
+
 
             # prepare date to store
-            curtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            curtime = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
             data = {"time": curtime,
                     "Voltage": V,
                     "Ampere": A}
             sql = "INSERT INTO `home_electricity`(`time`,`Voltage`,`Ampere`)"
-            sql += f" VALUES ({curtime},{V},{A})"
+            sql += f" VALUES ('{curtime}',{V},{A})"
 
             con.ping(reconnect=True)
 
@@ -232,5 +276,8 @@ if __name__ == "__main__":
             con.commit()
             logger.success(sql)
             sleep(60)
+        except ValueError as e:
+            logger.debug(e)
         except Exception as e:
+            print(sql)
             raise e

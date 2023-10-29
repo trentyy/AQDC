@@ -8,3 +8,4 @@ AQDC-home.json
 *.key
 *.log
 dev-env
+pic/*

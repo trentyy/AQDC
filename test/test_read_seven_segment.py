@@ -1,8 +1,75 @@
+import traceback, time, json
+import serial
+import pymysql.cursors
+from loguru import logger
+
+from datetime import datetime
+from picamera import PiCamera
+from time import sleep
+import RPi.GPIO as GPIO
+
+import os
 from PIL import Image
 import numpy as np
 import pytesseract
 import cv2
 import matplotlib.pyplot as plt
+
+DEBUG = False
+
+PWM_FREQ = 50
+vServoPIN = 12
+hServoPIN = 18
+
+# mapping input angle to reasonable number
+def ang2dc(angle: int):
+    xmin, xmax = -90, 90 # degree
+    ymin, ymax = 0.5, 2.5 # ms
+
+    if angle < xmin:
+        angle = -90
+    elif angle > xmax:
+        angle = 90
+    y = (angle - xmin) * (ymax - ymin) / (xmax - xmin) + ymin
+    return y * 5 # y/20(ms)*100
+
+def capture_pic(path="../pic", move=True):
+    filename = ""
+    try:
+        if move:
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(vServoPIN, GPIO.OUT)
+            GPIO.setup(hServoPIN, GPIO.OUT)
+            vPWM = GPIO.PWM(vServoPIN, PWM_FREQ)
+            hPWM = GPIO.PWM(hServoPIN, PWM_FREQ)
+            vdc = ang2dc(0)
+            hdc = ang2dc(-40)
+            print(vdc, hdc)
+            vPWM.start(vdc)
+            hPWM.start(hdc)
+            sleep(0.5)
+            vPWM.stop()
+            hPWM.stop()
+
+        camera = PiCamera()
+        camera.iso = 200
+        camera.vflip = True
+        camera.hflip = True
+        camera.start_preview()
+        sleep(1)
+        curtime = datetime.now().isoformat()
+        if (path != "./pic/"):
+            filename = f'{path}{curtime}.jpg'
+        camera.capture(filename)
+        camera.stop_preview()
+        
+    except Exception as e:
+        raise e
+    finally:
+        camera.close()
+        if move:
+            GPIO.cleanup()
+    return filename
 
 def ssRead(src, x, y, w, h, p=3):
     """
