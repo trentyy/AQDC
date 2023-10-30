@@ -5,6 +5,7 @@ __pycache__/
 .venv
 AQDC.json
 AQDC-home.json
+AQDC-actor.json
 *.key
 *.log
 dev-env

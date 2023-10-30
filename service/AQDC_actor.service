@@ -1,0 +1,13 @@
+[Unit]
+Description=AQDC actor control program
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -u actor.py
+WorkingDirectory=/home/pi/Github/AQDC
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
