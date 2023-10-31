@@ -1,4 +1,4 @@
-import traceback, time, json
+import traceback, time, json, datetime
 import pymysql.cursors
 # from loguru import logger
 
@@ -25,6 +25,11 @@ api.login()
 
 while True:
     try:
+        # activation time
+        curtime = datetime.datetime.now()
+        if (curtime.hour >= 0) and (curtime.hour < 8):
+            time.sleep(600)
+            continue
         flag = False
         con=pymysql.connect(host=HOST, user=USER, passwd=PW, db=DB)
         sql = "SELECT `time`,`humidity` from `home_dht22` ORDER BY `time` DESC limit 1"
