@@ -30,9 +30,8 @@ params_epa = jdata['airtw_epa']['params']
 
 # here is the name of data which you want to store 
 needed_id = [
-    'locationName', 
-    'TEMP', 'HUMD', 'PRES',
-    'H_F10', 'H_UVI',
+    'StationName', 
+    'AirTemperature', 'RelativeHumidity', 'AirPressure',
 ]
 
 # for print color
@@ -98,9 +97,7 @@ async def getDataCWB(url, params, DEBUG = False):
             data = data.text
             # use json.loads() to parse data from string-version, will become type: dict
             data = json.loads(data)
-            # print("line 95, jdata:",jdata)
-            # print("location len=",len(jdata['records']['location']))
-            if (len(data['records']['location'])!=0):
+            if (len(data['records']['Station'])!=0):
                 flag = False
             else:
                 time.sleep(60)
@@ -108,35 +105,25 @@ async def getDataCWB(url, params, DEBUG = False):
 
     def parseData(jdata):
         myDict = {}
-        tmpList = jdata['records']['location'][0]
+        tmpList = jdata['records']['Station'][0]
+        myDict['StationName'] = tmpList['StationName']
         
-        t = tmpList['time']['obsTime']      # from Taipei to UTC
+        t = tmpList['ObsTime']['DateTime']      # from Taipei to UTC
         t = datetime.fromisoformat(t)
         t = t# - dt.timedelta(hours=8)
 
-        myDict['obsTime'] = t
-        weatherElement = tmpList['weatherElement']
-        parameter = tmpList['parameter']
+        myDict['DateTime'] = t
+        WeatherElement = tmpList['WeatherElement']
 
-        for item in tmpList.keys():
-            if (item in needed_id):
-                myDict[item] = tmpList[item]
-        for item in weatherElement:
-            tmpDic = dict(item)
-            if (tmpDic['elementName'] == 'TEMP' and float(tmpDic['elementValue']) == -99):
-                logger.info("TEMP = -99, ignore")
+        for key, value in WeatherElement.items():
+            if (key == 'AirTemperature' and float(value) == -99):
+                logger.info("AirTemperature = -99, ignore")
                 return None
-            elif (tmpDic['elementName'] == 'HUMD' and float(tmpDic['elementValue']) == -9900):
-                logger.info("HUMD = -9900, ignore")
+            elif (key == 'RelativeHumidity' and float(value) == -99):
+                logger.info("RelativeHumidity = -99, ignore")
                 return None
-            if (tmpDic['elementName'] in needed_id):
-                myDict[tmpDic['elementName']] = tmpDic['elementValue']
-        for item in parameter:
-            tmpDic = dict(item)
-            if (tmpDic['parameterName'] in needed_id):
-                myDict[tmpDic['parameterName']] = tmpDic['parameterValue']
-        # data process
-        myDict['HUMD'] = float(myDict['HUMD']) * 100
+            if (key in needed_id):
+                myDict[key] = value
         return myDict
 
     data = getData(url, params)
