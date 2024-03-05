@@ -4,7 +4,7 @@ import pymysql.cursors
 
 from JciHitachi.api import JciHitachiAWSAPI
 
-with open("AQDC-home.json", 'r') as f:
+with open("./setting/AQDC-home.json", 'r') as f:
     jdata = json.load(f)
 
 HOST = jdata['host']
@@ -12,7 +12,7 @@ USER = jdata['user']
 PW = jdata['pw']
 DB = jdata['db']
 
-with open("AQDC-actor.json", 'r') as f:
+with open("./setting/AQDC-actor.json", 'r') as f:
     jdata = json.load(f)
 EMAIL = jdata['EMAIL']
 PASSWORD = jdata['PASSWORD']

@@ -1,0 +1,23 @@
+{
+    "host": "HOST",
+    "user": "USER",
+    "pw" : "PASSWORD",
+    "db": "DATABASE",
+    "cwa":
+    {
+        "url": "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001",
+        "params":
+        {
+            "Authorization": "YOUR_KEY",
+            "StationId": "466920"
+        }
+    },
+    "airtw_epa":
+    {
+        "url": "https://data.moenv.gov.tw/api/v2/aqx_p_203",
+        "params":
+        {
+            "api_key": "YOUR_KEY"
+        }
+    }
+}

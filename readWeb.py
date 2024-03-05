@@ -15,7 +15,7 @@ counter = 0
 udtCWA = 10 # update time for cwa: 10 min 
 wdCWA = True # flag for forcing to write data into database
 
-with open("AQDC-home.json", 'r') as f:
+with open("./setting/AQDC-home.json", 'r') as f:
     jdata = json.load(f)
 
 HOST = jdata['host']

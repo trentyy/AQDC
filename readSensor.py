@@ -13,7 +13,7 @@ BAUD_RATE = 9600
 
 ser = serial.Serial(COM_PORT, BAUD_RATE)
 
-with open("AQDC-home.json", 'r') as f:
+with open("./setting/AQDC-home.json", 'r') as f:
     jdata = json.load(f)
 
 HOST = jdata['host']

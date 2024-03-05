@@ -10,3 +10,4 @@ AQDC-actor.json
 *.log
 dev-env
 pic/*
+setting/*
