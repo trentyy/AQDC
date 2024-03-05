@@ -12,8 +12,8 @@ from urllib3.exceptions import NewConnectionError
 # log file name
 trace = logger.add("./log/readWeb.log", rotation="monthly", encoding="utf-8", enqueue=True, retention="1 year")
 counter = 0
-udtCWB = 10 # update time for cwb: 10 min 
-wdCWB = True # flag for forcing to write data into database
+udtCWA = 10 # update time for cwa: 10 min 
+wdCWA = True # flag for forcing to write data into database
 
 with open("AQDC-home.json", 'r') as f:
     jdata = json.load(f)
@@ -23,8 +23,8 @@ USER = jdata['user']
 PW = jdata['pw']
 DB = jdata['db']
 
-url_cwb = jdata['cwb']['url']
-params_cwb = jdata['cwb']['params']
+url_cwa = jdata['cwa']['url']
+params_cwa = jdata['cwa']['params']
 url_epa = jdata['airtw_epa']['url']
 params_epa = jdata['airtw_epa']['params']
 
@@ -46,15 +46,20 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-# store request url, include cwb key, do not upload!
-# curl -X GET "https://opendata.cwb.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=[YOURKEY]&stationId=467490" -H  "accept: application/json"
+
+# curl -X GET "https://data.moenv.gov.tw/api/v2/aqx_p_203?api_key=[YOURKEY]" -H "accept: */*"
+# curl -X GET "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=[YOURKEY]&stationId=467490" -H  "accept: application/json"
 
 async def getDataEPA(url, params, DEBUG = False):
     def getData(url, params):
         data = requests.get(url, params)
         if data.status_code != 200:
             logger.info(f"data.status_code: {data.status_code}")
-        data.raise_for_status()
+        try:
+            data.raise_for_status() 
+        except HTTPError:
+            return None
+            
 
         data = data.text
         data = json.loads(data)
@@ -76,31 +81,30 @@ async def getDataEPA(url, params, DEBUG = False):
         return myDict
         
     data = getData(url, params)
+    if data == None:
+        return None
     myDict = parseData(data)
     return myDict
 
-async def getDataCWB(url, params, DEBUG = False):
+async def getDataCWA(url, params, DEBUG = False):
     def getData(url, params):
-        flag = True
-        while(flag):
-            # get data from cwb
-            data = requests.get(url, params)
+        # get data from cwa
+        data = requests.get(url, params)
 
-            # dealing with request error
-            if data.status_code != 200:
-                logger.info(f"data.status_code: {data.status_code}")
-            try:
-                data.raise_for_status() 
-            except HTTPError:
-                time.sleep(60)
-                continue
-            data = data.text
-            # use json.loads() to parse data from string-version, will become type: dict
-            data = json.loads(data)
-            if (len(data['records']['Station'])!=0):
-                flag = False
-            else:
-                time.sleep(60)
+        # dealing with request error
+        if data.status_code != 200:
+            logger.info(f"data.status_code: {data.status_code}")
+        try:
+            data.raise_for_status() 
+        except HTTPError:
+            return None
+        data = data.text
+        # use json.loads() to parse data from string-version, will become type: dict
+        data = json.loads(data)
+        print(json.dumps(data))
+        if (len(data['records']['Station'])==0):
+            return None
+
         return data
 
     def parseData(jdata):
@@ -110,7 +114,6 @@ async def getDataCWB(url, params, DEBUG = False):
         
         t = tmpList['ObsTime']['DateTime']      # from Taipei to UTC
         t = datetime.fromisoformat(t)
-        t = t# - dt.timedelta(hours=8)
 
         myDict['DateTime'] = t
         WeatherElement = tmpList['WeatherElement']
@@ -127,42 +130,49 @@ async def getDataCWB(url, params, DEBUG = False):
         return myDict
 
     data = getData(url, params)
+    if data == None:
+        return None
     myDict = parseData(data)
     return myDict
 
 async def main():
     loop = asyncio.get_event_loop()
     counter = 0
-    wdCWB = True
+    wdCWA = True
+    CWA_data_fetched = False
+    EPA_data_fetched = False
     while True:
         counter += 1
-        if (counter >= udtCWB or wdCWB):
+        if (counter >= udtCWA or wdCWA):
             print(f"{bcolors.OKBLUE}{datetime.now()}{bcolors.ENDC}")
             sql = ""
             
             try:
-                cwb_dict = await getDataCWB(url_cwb, params_cwb)
-                if (cwb_dict == None):
-                    continue
+                cwa_dict = await getDataCWA(url_cwa, params_cwa)
+                if (cwa_dict == None):
+                    CWA_data_fetched = False
+                else:
+                    CWA_data_fetched = True
             except UnicodeDecodeError:
-                logger.error(f"[UnicodeDecodeError] cwb_dict: {cwb_dict}")
+                logger.error(f"[UnicodeDecodeError] cwa_dict: {cwa_dict}")
             except json.decoder.JSONDecodeError:
-                logger.error(f"[JSONDecodeError] cwb_dict: {cwb_dict}")
+                logger.error(f"[JSONDecodeError] cwa_dict: {cwa_dict}")
             except pymysql.err.OperationalError:
                 logger.exception("pymysql.err.OperationalError, sleep 1 min and continue")
                 await asyncio.sleep(60)
-                continue
             except (requests.exceptions.HTTPError, NewConnectionError) as e:
                 logger.exception(e)
                 await asyncio.sleep(60)
-                continue
             except Exception as e:
                 logger.exception(e)
                 await asyncio.sleep(60)
-                continue
 
             try:
                 epa_dict = await getDataEPA(url_epa, params_epa)
+                if (epa_dict == None):
+                    EPA_data_fetched = False
+                else:
+                    EPA_data_fetched = True
             except UnicodeDecodeError:
                 logger.error(f"[UnicodeDecodeError] epa_dict: {epa_dict}")
             except json.decoder.JSONDecodeError:
@@ -173,42 +183,43 @@ async def main():
             except (requests.exceptions.HTTPError, NewConnectionError) as e:
                 traceback.print_exc()
                 await asyncio.sleep(60)
-                continue
             except Exception as e:
                 logger.exception(e)
                 await asyncio.sleep(60)
-                continue
                 
             try:
                 db = pymysql.connect(host=HOST, user=USER, password=PW, db=DB,
-                                cursorclass=pymysql.cursors.DictCursor)
+                                    cursorclass=pymysql.cursors.DictCursor)
                 tmp = "\',\'"
-                sql = (
-                    "INSERT IGNORE INTO cwb_Nangang("
-                    f"{','.join([key for key in cwb_dict.keys()])}"
-                    ")VALUES(\'"
-                    f"{tmp.join([str(value) for value in cwb_dict.values()])}"
-                    "');"
-                )
-                db.cursor().execute(sql)
-                db.commit()
-                logger.success(sql)
+                if CWA_data_fetched:
+                    sql = (
+                        "INSERT IGNORE INTO cwa_Taipei("
+                        f"{','.join([key for key in cwa_dict.keys()])}"
+                        ")VALUES(\'"
+                        f"{tmp.join([str(value) for value in cwa_dict.values()])}"
+                        "');"
+                    )
+                    db.cursor().execute(sql)
+                    db.commit()
+                    logger.success(sql)
 
-
-                sql = (
-                    "INSERT IGNORE INTO epa_Taipei("
-                    f"{','.join([key for key in epa_dict.keys()])}"
-                    ")VALUES(\'"
-                    f"{tmp.join([str(value) for value in epa_dict.values()])}"
-                    "');"
-                )
-                db.cursor().execute(sql)
-                db.commit()
-                logger.success(sql)
+                if EPA_data_fetched:
+                    sql = (
+                        "INSERT IGNORE INTO epa_Taipei("
+                        f"{','.join([key for key in epa_dict.keys()])}"
+                        ")VALUES(\'"
+                        f"{tmp.join([str(value) for value in epa_dict.values()])}"
+                        "');"
+                    )
+                    db.cursor().execute(sql)
+                    db.commit()
+                    logger.success(sql)
                 db.close()
 
                 counter = 0
-                wdCWB = False
+                wdCWA = False
+                CWA_data_fetched = False
+                EPA_data_fetched = False
             except Exception as e:
                 logger.exception(e)
                 time.sleep(90)

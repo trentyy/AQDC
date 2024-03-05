@@ -29,16 +29,14 @@
   "liveNow": false,
   "panels": [
     {
-      "datasource": {
-        "type": "mysql",
-        "uid": "LXikZWkRk"
-      },
+      "datasource": {},
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -54,6 +52,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -75,7 +74,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -83,7 +83,8 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percent",
+          "unitScale": true
         },
         "overrides": [
           {
@@ -128,6 +129,7 @@
             "type": "mysql",
             "uid": "LXikZWkRk"
           },
+          "editorMode": "code",
           "format": "time_series",
           "group": [
             {
@@ -139,7 +141,7 @@
             }
           ],
           "metricColumn": "none",
-          "rawQuery": false,
+          "rawQuery": true,
           "rawSql": "SELECT\n  $__timeGroupAlias(time,$__interval),\n  avg(humidity) AS \"home_dht22\"\nFROM home_dht22\nWHERE\n  $__timeFilter(time)\nGROUP BY 1\nORDER BY $__timeGroup(time,$__interval)",
           "refId": "A",
           "select": [
@@ -164,6 +166,23 @@
               }
             ]
           ],
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
           "table": "home_dht22",
           "timeColumn": "time",
           "timeColumnType": "datetime",
@@ -235,7 +254,7 @@
     {
       "datasource": {
         "type": "mysql",
-        "uid": "LXikZWkRk"
+        "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132"
       },
       "fieldConfig": {
         "defaults": {
@@ -243,6 +262,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -257,6 +277,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -278,7 +299,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -286,7 +308,8 @@
               }
             ]
           },
-          "unit": "celsius"
+          "unit": "celsius",
+          "unitScale": true
         },
         "overrides": []
       },
@@ -315,6 +338,7 @@
             "type": "mysql",
             "uid": "LXikZWkRk"
           },
+          "editorMode": "code",
           "format": "time_series",
           "group": [
             {
@@ -326,7 +350,7 @@
             }
           ],
           "metricColumn": "none",
-          "rawQuery": false,
+          "rawQuery": true,
           "rawSql": "SELECT\n  $__timeGroupAlias(time,$__interval),\n  avg(temperature) AS \"dht22\"\nFROM home_dht22\nWHERE\n  $__timeFilter(time)\nGROUP BY 1\nORDER BY $__timeGroup(time,$__interval)",
           "refId": "A",
           "select": [
@@ -351,6 +375,23 @@
               }
             ]
           ],
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
           "table": "home_dht22",
           "timeColumn": "time",
           "timeColumnType": "datetime",
@@ -475,7 +516,7 @@
     {
       "datasource": {
         "type": "mysql",
-        "uid": "LXikZWkRk"
+        "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132"
       },
       "fieldConfig": {
         "defaults": {
@@ -483,6 +524,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -496,6 +538,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -517,7 +560,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "super-light-yellow",
@@ -541,7 +585,8 @@
               }
             ]
           },
-          "unit": "conμgNm3"
+          "unit": "conμgNm3",
+          "unitScale": true
         },
         "overrides": []
       },
@@ -570,6 +615,7 @@
             "type": "mysql",
             "uid": "LXikZWkRk"
           },
+          "editorMode": "code",
           "format": "time_series",
           "group": [
             {
@@ -581,7 +627,7 @@
             }
           ],
           "metricColumn": "none",
-          "rawQuery": false,
+          "rawQuery": true,
           "rawSql": "SELECT\n  $__timeGroupAlias(time,5m),\n  avg(pm2_5) AS \"room\"\nFROM home_pms7003\nWHERE\n  $__timeFilter(time)\nGROUP BY 1\nORDER BY $__timeGroup(time,5m)",
           "refId": "A",
           "select": [
@@ -606,6 +652,23 @@
               }
             ]
           ],
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
           "table": "home_pms7003",
           "timeColumn": "time",
           "timeColumnType": "timestamp",
@@ -622,6 +685,7 @@
             "type": "mysql",
             "uid": "LXikZWkRk"
           },
+          "editorMode": "code",
           "format": "time_series",
           "group": [
             {
@@ -634,8 +698,8 @@
           ],
           "hide": false,
           "metricColumn": "none",
-          "rawQuery": false,
-          "rawSql": "SELECT\n  $__timeGroupAlias(time,$__interval),\n  avg(PM2_5) AS \"outdoor\"\nFROM epa_Taichung\nWHERE\n  $__timeFilter(time)\nGROUP BY 1\nORDER BY $__timeGroup(time,$__interval)",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(time,$__interval),\n  avg(PM2_5) AS \"outdoor\"\nFROM epa_Taipei\nWHERE\n  $__timeFilter(time)\nGROUP BY 1\nORDER BY $__timeGroup(time,$__interval)",
           "refId": "B",
           "select": [
             [
@@ -659,6 +723,23 @@
               }
             ]
           ],
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
           "table": "epa_Taichung",
           "timeColumn": "time",
           "timeColumnType": "datetime",
@@ -677,7 +758,7 @@
     {
       "datasource": {
         "type": "mysql",
-        "uid": "LXikZWkRk"
+        "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132"
       },
       "fieldConfig": {
         "defaults": {
@@ -685,6 +766,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -698,6 +780,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -719,7 +802,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "super-light-yellow",
@@ -743,7 +827,8 @@
               }
             ]
           },
-          "unit": "conμgNm3"
+          "unit": "conμgNm3",
+          "unitScale": true
         },
         "overrides": []
       },
@@ -772,6 +857,7 @@
             "type": "mysql",
             "uid": "LXikZWkRk"
           },
+          "editorMode": "code",
           "format": "time_series",
           "group": [
             {
@@ -783,7 +869,7 @@
             }
           ],
           "metricColumn": "none",
-          "rawQuery": false,
+          "rawQuery": true,
           "rawSql": "SELECT\n  $__timeGroupAlias(time,5m),\n  avg(pm10) AS \"pm10\"\nFROM home_pms7003\nWHERE\n  $__timeFilter(time)\nGROUP BY 1\nORDER BY $__timeGroup(time,5m)",
           "refId": "A",
           "select": [
@@ -808,6 +894,23 @@
               }
             ]
           ],
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
           "table": "home_pms7003",
           "timeColumn": "time",
           "timeColumnType": "timestamp",
@@ -824,6 +927,7 @@
             "type": "mysql",
             "uid": "LXikZWkRk"
           },
+          "editorMode": "code",
           "format": "time_series",
           "group": [
             {
@@ -836,8 +940,8 @@
           ],
           "hide": false,
           "metricColumn": "none",
-          "rawQuery": false,
-          "rawSql": "SELECT\n  $__timeGroupAlias(time,$__interval),\n  PM10 AS \"outdoor\"\nFROM epa_Taichung\nWHERE\n  $__timeFilter(time)\nGROUP BY 1\nORDER BY $__timeGroup(time,$__interval)",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(time,$__interval),\n  PM10 AS \"outdoor\"\nFROM epa_Taipei\nWHERE\n  $__timeFilter(time)\nGROUP BY 1\nORDER BY $__timeGroup(time,$__interval)",
           "refId": "B",
           "select": [
             [
@@ -855,6 +959,23 @@
               }
             ]
           ],
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
           "table": "epa_Taichung",
           "timeColumn": "time",
           "timeColumnType": "datetime",
@@ -881,6 +1002,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -894,6 +1016,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -915,14 +1038,16 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
                 "value": 80
               }
             ]
-          }
+          },
+          "unitScale": true
         },
         "overrides": []
       },
@@ -1013,6 +1138,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -1026,6 +1152,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -1047,14 +1174,16 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
                 "value": 80
               }
             ]
-          }
+          },
+          "unitScale": true
         },
         "overrides": []
       },
@@ -1135,10 +1264,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "mysql",
-        "uid": "LXikZWkRk"
-      },
+      "datasource": {},
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1151,7 +1277,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "super-light-blue"
+                "color": "super-light-blue",
+                "value": null
               },
               {
                 "color": "blue",
@@ -1171,7 +1298,8 @@
               }
             ]
           },
-          "unit": "celsius"
+          "unit": "celsius",
+          "unitScale": true
         },
         "overrides": []
       },
@@ -1183,6 +1311,8 @@
       },
       "id": 14,
       "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -1192,15 +1322,17 @@
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "showThresholdMarkers": true,
+        "sizing": "auto"
       },
-      "pluginVersion": "9.4.7",
+      "pluginVersion": "10.3.3",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "LXikZWkRk"
           },
+          "editorMode": "code",
           "format": "time_series",
           "group": [
             {
@@ -1212,7 +1344,7 @@
             }
           ],
           "metricColumn": "none",
-          "rawQuery": false,
+          "rawQuery": true,
           "rawSql": "SELECT\n  $__timeGroupAlias(time,1m),\n  avg(temperature) AS \"temperature\"\nFROM home_ds18b20\nWHERE\n  $__timeFilter(time)\nGROUP BY 1\nORDER BY $__timeGroup(time,1m)",
           "refId": "A",
           "select": [
@@ -1237,6 +1369,23 @@
               }
             ]
           ],
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
           "table": "home_ds18b20",
           "timeColumn": "time",
           "timeColumnType": "datetime",
@@ -1253,10 +1402,7 @@
       "type": "gauge"
     },
     {
-      "datasource": {
-        "type": "mysql",
-        "uid": "LXikZWkRk"
-      },
+      "datasource": {},
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1269,7 +1415,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "dark-purple"
+                "color": "dark-purple",
+                "value": null
               },
               {
                 "color": "semi-dark-purple",
@@ -1293,7 +1440,8 @@
               }
             ]
           },
-          "unit": "humidity"
+          "unit": "humidity",
+          "unitScale": true
         },
         "overrides": []
       },
@@ -1305,6 +1453,8 @@
       },
       "id": 15,
       "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -1314,15 +1464,17 @@
           "values": false
         },
         "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "showThresholdMarkers": true,
+        "sizing": "auto"
       },
-      "pluginVersion": "9.4.7",
+      "pluginVersion": "10.3.3",
       "targets": [
         {
           "datasource": {
             "type": "mysql",
             "uid": "LXikZWkRk"
           },
+          "editorMode": "code",
           "format": "time_series",
           "group": [
             {
@@ -1334,7 +1486,7 @@
             }
           ],
           "metricColumn": "none",
-          "rawQuery": false,
+          "rawQuery": true,
           "rawSql": "SELECT\n  $__timeGroupAlias(time,1m),\n  avg(humidity) AS \"temperature\"\nFROM home_dht22\nWHERE\n  $__timeFilter(time)\nGROUP BY 1\nORDER BY $__timeGroup(time,1m)",
           "refId": "A",
           "select": [
@@ -1359,6 +1511,23 @@
               }
             ]
           ],
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
           "table": "home_dht22",
           "timeColumn": "time",
           "timeColumnType": "datetime",
@@ -1377,8 +1546,7 @@
   ],
   "refresh": "5m",
   "revision": 1,
-  "schemaVersion": 38,
-  "style": "dark",
+  "schemaVersion": 39,
   "tags": [],
   "templating": {
     "list": []
@@ -1391,6 +1559,6 @@
   "timezone": "",
   "title": "AQDC dashboard",
   "uid": "g7u960kRz",
-  "version": 11,
+  "version": 3,
   "weekStart": ""
 }

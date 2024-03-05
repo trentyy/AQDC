@@ -1,11 +1,7 @@
-certifi==2020.12.5
-chardet==3.0.4
-future==0.18.2
-idna==2.10
-iso8601==0.1.13
-pkg-resources==0.0.0
-PyMySQL==0.10.1
+PyMySQL==1.1.0
 pyserial==3.5
-PyYAML==5.3.1
-requests==2.25.0
-urllib3==1.26.2
+PyYAML==6.0.1
+requests==2.31.0
+urllib3==2.2.1
+LibJciHitachi==1.5.0
+loguru==0.7.2
