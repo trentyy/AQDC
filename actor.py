@@ -10,6 +10,7 @@ from JciHitachi.api import JciHitachiAWSAPI
 
 class StateMachine(object):
     def __init__(self) -> None:
+        print("initiating...")
         self.FANSPEED = {"silent" : 1, "low" : 2, "moderate" : 3, "high" : 4}
 
         with open("./setting/AQDC-home.json", 'r') as f:
@@ -35,6 +36,7 @@ class StateMachine(object):
         self.state_config = None
         self.updateConfig()
         self.updateState(isBooting=True)
+        print("...initiate finished")
 
 
     def isInHome(self):
@@ -46,8 +48,10 @@ class StateMachine(object):
         con.close()
         co2 = result[0][1]
         if co2 > 600:
+            print("isInHome: co2=", co2, ">600")
             return True
         else:
+            print("isInHome: co2=", co2, "<600")
             return False
 
 
@@ -113,15 +117,22 @@ class StateMachine(object):
         
         # decide next state
         next_state = 0
-        for i in range(len(self.states)):
-            state = self.states[i]
+        isInHome = self.isInHome()
+        
+        for state in self.states:
             start_time, end_time = state["start_time"], state["end_time"]
+            isSpecifiedTime = self.isSpecifiedTime(t, start_time, end_time)
             
-            if (self.isSpecifiedTime(t, start_time, end_time) and
-                (self.isInHome() == state["in_home"])):
+            if (isSpecifiedTime and (isInHome == state["in_home"])):
                 next_state = state["state"]
                 self.state_config = state
-        print(f"current state:{self.state}, next state: {next_state}")
+                break
+        else:
+            print("for else: state=")
+            print(state)
+            next_state = state["state"]
+            self.state_config = state
+        print(f"updateState\nCurrent state:{self.state}, next state: {next_state}")
         print(f"self.state_config:{self.state_config}")
 
         # update state setting
@@ -140,6 +151,7 @@ class StateMachine(object):
                 device_name=self.DEVICENAME,
                 status_value=FanSpeedSetting
             )
+            print("set_status: FanSpeed=", FanSpeedSetting)
 
         curHumiditySetting = self.device_status["HumiditySetting"]
         HumiditySetting = self.state_config["humid_setting"]
@@ -149,7 +161,7 @@ class StateMachine(object):
                 device_name=self.DEVICENAME,
                 status_value=self.state_config["humid_setting"]
             )
-
+            print("set_status: HumiditySetting=", self.state_config["humid_setting"])
 
     def checkAlwaysOff(self):
         if self.device_status["Switch"] == 'on' and not self.power:
@@ -160,12 +172,17 @@ class StateMachine(object):
         if not self.power:
             return
 
-        if self.state_config["humid_lower_limit"] > self.humidity:
-            if self.device_status['Switch'] == 'on':
+        if self.device_status['Switch'] == 'on':
+            if (self.humidity < self.state_config["humid_lower_limit"]) and (self.auto_turn_off == 1):
                 self.api.set_status(status_name="Switch", device_name=self.DEVICENAME, status_value=0)
-        elif self.state_config["humid_upper_limit"] <= self.humidity:
-            if self.device_status['Switch'] == 'off':
+                print(f"power set to 1, 目前濕度{self.humidity}低於設定濕度下限{self.state_config['humid_lower_limit']}===>關閉除濕機")
+        elif self.device_status['Switch'] == 'off':
+            if self.auto_turn_off == 0:
                 self.api.set_status(status_name="Switch", device_name=self.DEVICENAME, status_value=1)
+                print(f"power set to 1, 自動關閉送風模式為0===>開啟除濕機")
+            elif self.humidity >= self.state_config["humid_upper_limit"]:
+                self.api.set_status(status_name="Switch", device_name=self.DEVICENAME, status_value=1)
+                print(f"power set to 1, 目前濕度{self.humidity}高於設定濕度上限{self.state_config['humid_lower_limit']}===>開啟除濕機")
 
 
 if __name__ == "__main__":
