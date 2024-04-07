@@ -39,7 +39,7 @@ class StateMachine(object):
         print("...initiate finished")
 
 
-    def isInHome(self):
+    def isInHome(self, threshold=600):
         sql = "SELECT `time`, `co2` FROM `home_mhz19b` ORDER BY `time` DESC LIMIT 1;"
         con=pymysql.connect(host=self.HOST, user=self.USER, passwd=self.PW, db=self.DB)
         with con.cursor() as cur:
@@ -47,11 +47,11 @@ class StateMachine(object):
             result = cur.fetchall()
         con.close()
         co2 = result[0][1]
-        if co2 > 600:
-            print("isInHome: co2=", co2, ">600")
+        if co2 > threshold:
+            print(f"isInHome: co2={co2}>{600}")
             return True
         else:
-            print("isInHome: co2=", co2, "<600")
+            print(f"isInHome: co2={co2}<={600}")
             return False
 
 
@@ -175,14 +175,14 @@ class StateMachine(object):
         if self.device_status['Switch'] == 'on':
             if (self.humidity < self.state_config["humid_lower_limit"]) and (self.auto_turn_off == 1):
                 self.api.set_status(status_name="Switch", device_name=self.DEVICENAME, status_value=0)
-                print(f"power set to 1, 目前濕度{self.humidity}低於設定濕度下限{self.state_config['humid_lower_limit']}===>關閉除濕機")
+                print(f"power botton set to 1, 目前濕度{self.humidity}低於設定濕度下限{self.state_config['humid_lower_limit']}===>關閉除濕機")
         elif self.device_status['Switch'] == 'off':
             if self.auto_turn_off == 0:
                 self.api.set_status(status_name="Switch", device_name=self.DEVICENAME, status_value=1)
-                print(f"power set to 1, 自動關閉送風模式為0===>開啟除濕機")
+                print(f"power botton set to 1, 自動關閉送風模式為0===>開啟除濕機")
             elif self.humidity >= self.state_config["humid_upper_limit"]:
                 self.api.set_status(status_name="Switch", device_name=self.DEVICENAME, status_value=1)
-                print(f"power set to 1, 目前濕度{self.humidity}高於設定濕度上限{self.state_config['humid_lower_limit']}===>開啟除濕機")
+                print(f"power botton set to 1, 目前濕度{self.humidity}高於設定濕度上限{self.state_config['humid_lower_limit']}===>開啟除濕機")
 
 
 if __name__ == "__main__":
