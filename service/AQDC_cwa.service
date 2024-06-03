@@ -1,9 +1,9 @@
 [Unit]
-Description=AQDC to get cwb data
+Description=AQDC to get cwa data
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 -u readWeb.py
+ExecStart=/home/pi/Github/AQDC/.venv/bin/python -u readWeb.py
 WorkingDirectory=/home/pi/Github/AQDC
 StandardOutput=inherit
 StandardError=inherit

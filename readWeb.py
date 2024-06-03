@@ -47,7 +47,7 @@ class bcolors:
     UNDERLINE = '\033[4m'
 
 
-# curl -X GET "https://data.moenv.gov.tw/api/v2/aqx_p_203?api_key=[YOURKEY]" -H "accept: */*"
+# curl -X GET "https://data.moenv.gov.tw/api/v2/aqx_p_212?api_key=[YOURKEY]" -H "accept: */*"
 # curl -X GET "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=[YOURKEY]&stationId=467490" -H  "accept: application/json"
 
 async def getDataEPA(url, params, DEBUG = False):
@@ -193,7 +193,7 @@ async def main():
                 tmp = "\',\'"
                 if CWA_data_fetched:
                     sql = (
-                        "INSERT IGNORE INTO cwa_Taipei("
+                        "INSERT IGNORE INTO cwa_Home("
                         f"{','.join([key for key in cwa_dict.keys()])}"
                         ")VALUES(\'"
                         f"{tmp.join([str(value) for value in cwa_dict.values()])}"
@@ -205,7 +205,7 @@ async def main():
 
                 if EPA_data_fetched:
                     sql = (
-                        "INSERT IGNORE INTO epa_Taipei("
+                        "INSERT IGNORE INTO epa_Home("
                         f"{','.join([key for key in epa_dict.keys()])}"
                         ")VALUES(\'"
                         f"{tmp.join([str(value) for value in epa_dict.values()])}"

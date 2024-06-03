@@ -3,7 +3,7 @@ Description=AQDC actor control program
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 -u actor.py
+ExecStart=/home/pi/Github/AQDC/.venv/bin/python -u actor.py
 WorkingDirectory=/home/pi/Github/AQDC
 StandardError=inherit
 Restart=always
