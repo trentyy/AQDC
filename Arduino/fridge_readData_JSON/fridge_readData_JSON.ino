@@ -13,7 +13,10 @@
 
 // define wifi configs
 #include "secret.h"
-
+#ifndef STASSID
+#define STASSID "SSID"
+#define STAPSK "PASSWORD"
+#endif
 
 // declare variables
 DynamicJsonDocument doc(256);
