@@ -1,0 +1,13 @@
+services:
+  api:
+    build: ./api
+    restart: always
+    ports:
+      - 8888:8888
+    networks:
+      - backnet
+      - frontnet
+
+networks:
+  backnet:
+  frontnet:
