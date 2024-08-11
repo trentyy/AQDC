@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify
 from sqlalchemy import create_engine
 from flask_sqlalchemy import SQLAlchemy
@@ -34,10 +34,10 @@ def hello_world():
 def add_sensor_data():
     if request.is_json:
         data = request.get_json()
-        current_time = datetime.now()
+        current_time = datetime.now(timezone(timedelta(hours=8)))
         temperature = data.get('fridge_AM2108').get('Temperature')
         humidity = data.get('fridge_AM2108').get('Humidity')
-        print(temperature, humidity)
+        print(current_time, temperature, humidity)
 
         am2108_data = AM2108_Data(time=current_time,
                                   temperature=temperature,
