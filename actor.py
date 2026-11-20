@@ -164,6 +164,7 @@ class StateMachine(object):
             print("set_status: HumiditySetting=", self.state_config["humid_setting"])
 
     def checkAlwaysOff(self):
+        print("checkAlwaysOff: ", self.device_status["Switch"] == 'on', not self.power)
         if self.device_status["Switch"] == 'on' and not self.power:
             self.api.set_status(status_name="Switch", device_name=self.DEVICENAME, status_value=0)
 

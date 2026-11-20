@@ -101,7 +101,7 @@ async def getDataCWA(url, params, DEBUG = False):
         data = data.text
         # use json.loads() to parse data from string-version, will become type: dict
         data = json.loads(data)
-        print(json.dumps(data))
+
         if (len(data['records']['Station'])==0):
             return None
 
@@ -193,7 +193,7 @@ async def main():
                 tmp = "\',\'"
                 if CWA_data_fetched:
                     sql = (
-                        "INSERT IGNORE INTO cwa_Home("
+                        "INSERT IGNORE INTO cwa_home("
                         f"{','.join([key for key in cwa_dict.keys()])}"
                         ")VALUES(\'"
                         f"{tmp.join([str(value) for value in cwa_dict.values()])}"
@@ -205,7 +205,7 @@ async def main():
 
                 if EPA_data_fetched:
                     sql = (
-                        "INSERT IGNORE INTO epa_Home("
+                        "INSERT IGNORE INTO epa_home("
                         f"{','.join([key for key in epa_dict.keys()])}"
                         ")VALUES(\'"
                         f"{tmp.join([str(value) for value in epa_dict.values()])}"
