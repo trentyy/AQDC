@@ -28,6 +28,11 @@
         }
     },
     "table_names": {},
+    "metrics":
+    {
+        "host": "127.0.0.1",
+        "port": 9106
+    },
     "healthcheck":
     {
         "notify_url": ""

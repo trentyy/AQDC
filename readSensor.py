@@ -9,6 +9,7 @@ import serial
 from loguru import logger
 
 from common import db_connect, load_home_setting
+from sensor_metrics import METRICS, metrics_address, start_server
 from sensor_parse import parse_payload
 
 logger.add("./log/readSensor.log", rotation="monthly", encoding="utf-8",
@@ -61,6 +62,8 @@ def save(con, curtime, rows):
 
 def main():
     setting = load_home_setting()
+    host, port = metrics_address(setting)
+    start_server(METRICS, host, port)
     con = db_connect(setting)
     ser = open_serial()
 
@@ -77,6 +80,12 @@ def main():
                 logger.warning(f"rejected: {rejected}")
             if not rows:
                 continue
+
+            # 先更新 Prometheus 指標（與資料庫無關），再寫資料庫
+            try:
+                METRICS.update(rows)
+            except Exception as e:
+                logger.error(f"metrics update failed: {e!r}")
 
             curtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             save(con, curtime, rows)

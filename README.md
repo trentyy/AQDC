@@ -137,10 +137,34 @@ cd .. && docker compose up -d --build
 
 ```bash
 python3 -m unittest discover -s test -p "test_logic.py"    # 純邏輯單元測試
+python3 -m unittest discover -s test -p "test_metrics.py"  # Prometheus 指標（需已安裝 requirements.txt）
 journalctl -u AQDC_local -f        # 應每分鐘看到 "saved: [...]"
 tail -f log/actor.log              # 應看到狀態切換與下指令的原因
 .venv/bin/python healthcheck.py && echo OK   # 各表資料都新鮮則回傳 0
 ```
+
+## Prometheus 指標（readSensor）
+
+`readSensor.py` 每次成功解析序列埠資料，除了寫入 MySQL，也更新記憶體中的指標並在 `http://<host>:<port>/metrics` 提供
+（只用標準函式庫 `http.server`，沒有額外套件）。指標更新與資料庫無關，資料庫失敗時仍會更新。
+
+| 指標 | 標籤 | 來源 |
+|---|---|---|
+| `aqdc_temperature_celsius` | `sensor="ds18b20"｜"dht22"｜"mhz19b"` | 三張表的 `temperature` |
+| `aqdc_humidity_percent` | `sensor="dht22"` | `home_dht22.humidity` |
+| `aqdc_co2_ppm` | `sensor="mhz19b"` | `home_mhz19b.co2` |
+| `aqdc_pm_ug_per_m3` | `size="pm1"｜"pm2_5"｜"pm10"` | `home_pms7003` |
+| `aqdc_last_reading_timestamp_seconds` | `sensor="ds18b20"｜"dht22"｜"mhz19b"｜"pms7003"` | 該感測器最後一次成功讀取的 Unix 時間 |
+
+- 都是 gauge。感測器讀不到（`null`、超出範圍被拒絕）時保留舊值與舊時間戳記，不編造資料；從未讀到過的感測器完全不輸出。
+  判斷資料是否過期請看 `aqdc_last_reading_timestamp_seconds`。
+- 對照表在 `sensor_metrics.py` 的 `VALUE_METRICS` / `TIMESTAMP_SENSORS`，是明確列舉，不是依欄位名稱產生。
+- **位址設定**：預設 `127.0.0.1:9106`。在 `setting/AQDC-home.json` 加 `"metrics": {"host": "<Pi 的 Tailscale IP>", "port": 9106}`，
+  或用環境變數 `AQDC_METRICS_HOST` / `AQDC_METRICS_PORT`（優先於設定檔）。部署到 Pi 時請綁 Tailscale IP（`tailscale ip -4`），
+  Portal 的 Prometheus 透過 Tailscale 抓取。**不要綁 `0.0.0.0`**——程式會拒絕萬用位址並關閉端點。
+- 綁定失敗（例如開機時 Tailscale 尚未就緒）只記錄錯誤並每 30 秒重試，不影響讀感測器的主迴圈；
+  `AQDC_local.service` 也加了 `After=/Wants=tailscaled.service`。
+- 驗證：`curl http://<Tailscale IP>:9106/metrics`，數值應與各表最新一筆一致。
 
 ## 日誌與維運
 

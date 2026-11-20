@@ -1,6 +1,7 @@
 [Unit]
 Description=AQDC get data from Arduino
-After=network.target
+After=network.target tailscaled.service
+Wants=tailscaled.service
 
 [Service]
 ExecStart=/home/pi/Github/AQDC/.venv/bin/python -u readSensor.py

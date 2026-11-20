@@ -1,5 +1,14 @@
 # 修改紀錄
 
+## 2026-11-20 readSensor 的 Prometheus 指標
+
+- 新增 `sensor_metrics.py`：`readSensor.py` 在 `parse_payload` 之後、寫入 MySQL 之前更新指標，並在 `/metrics` 提供，讓 Portal 的 Prometheus 直接抓讀數。資料庫寫入失敗時指標仍會更新；MySQL 寫入、資料表、交易處理未更動。
+- 指標：`aqdc_temperature_celsius{sensor}`、`aqdc_humidity_percent{sensor="dht22"}`、`aqdc_co2_ppm{sensor="mhz19b"}`、`aqdc_pm_ug_per_m3{size}`、`aqdc_last_reading_timestamp_seconds{sensor}`（細節見 README「Prometheus 指標」）。
+- HTTP 用標準函式庫 `http.server`，不用 `prometheus_client`：只有 5 組 gauge，不增加相依套件，也免去固定版本與發佈日查證。
+- 位址：預設 `127.0.0.1:9106`；`AQDC-home.json` 的 `metrics.host/port` 或環境變數 `AQDC_METRICS_HOST/PORT` 可改。拒絕綁 `0.0.0.0`；綁定失敗每 30 秒重試，不影響主迴圈。
+- `service/AQDC_local.service` 加 `After=tailscaled.service` 與 `Wants=tailscaled.service`。
+- 新增 `test/test_metrics.py`。
+
 ## 2026-11-20 穩定性與正確性修正
 
 依程式審查的建議逐項修正。**未在實機上執行**：開發環境沒有 Python / Arduino / 感測器，
