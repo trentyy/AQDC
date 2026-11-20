@@ -5,11 +5,10 @@
     "db": "DATABASE",
     "cwa":
     {
-        "url": "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001",
+        "url": "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001",
         "params":
         {
-            "Authorization": "YOUR_KEY",
-            "StationId": "466920"
+            "Authorization": "YOUR_KEY"
         }
     },
     "airtw_epa":

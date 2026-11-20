@@ -157,3 +157,17 @@ tail -f log/actor.log              # 應看到狀態切換與下指令的原因
 
 - 空品 https://data.moenv.gov.tw/ 、氣象 https://opendata.cwa.gov.tw/
 - [LibJciHitachi](https://github.com/qqaatw/LibJciHitachi)
+
+## 氣象署測站設定
+
+`AQDC-home.json` 的 `cwa.stations` 列出要抓的測站，每個測站寫入各自的資料表（`cwa_Home` 的主鍵只有 `DateTime`，不能混存多個測站）：
+
+```json
+"stations": [
+    {"id": "CAD090", "label": "home", "table": "cwa_Home"},
+    {"id": "C0D660", "label": "work", "table": "cwa_Work"}
+]
+```
+
+新增測站的資料表前先建表：`CREATE TABLE cwa_work LIKE cwa_home;`（Linux 上請對應實際大小寫，並加進 `table_names`）。
+測站代碼可從 `O-A0001-001`（自動氣象站，含氣壓）的回應中依座標找最近的；沒有 `stations` 時使用舊的 `cwa.params.StationId`。

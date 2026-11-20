@@ -6,7 +6,7 @@ import time
 import requests
 from loguru import logger
 
-from common import db_connect, load_home_setting, redact, table_name
+from common import cwa_stations, db_connect, load_home_setting, redact, table_name
 from web_parse import parse_cwa, parse_epa
 
 logger.add("./log/readWeb.log", rotation="monthly", encoding="utf-8",
@@ -53,17 +53,27 @@ def insert(table, columns, data):
     logger.success(f"{table}: {dict(zip(cols, [data[c] for c in cols]))}")
 
 
-JOBS = [
-    ("cwa", parse_cwa, "cwa_Home", CWA_COLUMNS),
-    ("epa", parse_epa, "epa_Home", EPA_COLUMNS),
-]
+def build_jobs():
+    """每個氣象署測站一個工作，加上環境部一個工作；各自獨立，互不影響。
+    回傳 [(名稱, url, params, 解析函式, 資料表, 欄位), ...]"""
+    jobs = []
+    cwa_url, cwa_params = SOURCES["cwa"]
+    for st in cwa_stations(setting):
+        params = dict(cwa_params)
+        params.pop("stationId", None)
+        params["StationId"] = st["id"]
+        jobs.append((f"cwa:{st['label']}({st['id']})", cwa_url, params,
+                     lambda j, sid=st["id"]: parse_cwa(j, station_id=sid),
+                     st["table"], CWA_COLUMNS))
+    epa_url, epa_params = SOURCES["epa"]
+    jobs.append(("epa", epa_url, epa_params, parse_epa, "epa_Home", EPA_COLUMNS))
+    return jobs
 
 
 def run_once():
-    """兩個來源各自獨立處理，一邊失敗不影響另一邊。回傳是否全部成功。"""
+    """各來源 / 測站獨立處理，一個失敗不影響其他。回傳是否全部成功。"""
     all_ok = True
-    for name, parse, table, columns in JOBS:
-        url, params = SOURCES[name]
+    for name, url, params, parse, table, columns in build_jobs():
         try:
             data = parse(http_get_json(url, params))
             if data is None:

@@ -81,3 +81,13 @@
 - `AQDC_electricity` 未架設硬體，未安裝；`home_electricity` 資料表不存在，所以不需要時區遷移。
 - `actor` 失敗原因：`LibJciHitachi` 登入時 `RuntimeError: An event occurred but wasn't accompanied with data when refreshing RD-200HH1 support code`。
   升級到最新版 1.7.2 結果相同，不是版本問題；通常代表日立雲端沒有回傳設備的 support code（設備離線 / 未連上雲端，或官方 App 正在使用）。
+
+### 2026-11-20 氣象署測站改為「家」與「工作地點」
+- 設定檔 `cwa.stations` 可列出多個測站（`id`、`label`、`table`），每個測站各抓各的、各寫各的表；沒有 `stations` 時沿用舊的 `cwa.params.StationId`（寫入 `cwa_Home`）。
+- 因為 `cwa_home` 的主鍵只有 `DateTime`，同一觀測時間的兩個測站會互相衝突，所以工作地點寫入結構相同的新表 `cwa_work`（`CREATE TABLE cwa_work LIKE cwa_home`）。
+- 資料集改用 `O-A0001-001`（自動氣象站，876 站）：`O-A0003-001` 裡的自動站氣壓是 -99，這個資料集才有氣壓。
+- 測站（距離以 WGS84 座標計算）：
+  - 家（新竹市東區柴橋路）：**國三S103K**（`CAD090`，新竹市東區），距柴橋路約 0.3～1.3 公里。
+  - 工作（國立清華大學）：**新竹市東區**（`C0D660`），距清大約 0.95 公里。
+- 回傳的測站代碼必須與請求相符才寫入（`parse_cwa(station_id=...)`）；`healthcheck.py` 會檢查每個測站的表。
+- 注意：`cwa_home` 既有歷史資料是「新竹」（`467571`，竹北市局屬站），切換後同一張表會混有兩個測站，以 `StationName` 區分；Grafana 面板若不分測站，會在切換時間點出現落差。

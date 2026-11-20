@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 import requests
 from loguru import logger
 
-from common import db_connect, load_home_setting, redact, table_name
+from common import cwa_stations, db_connect, load_home_setting, redact, table_name
 
 logger.add("./log/healthcheck.log", rotation="monthly", encoding="utf-8",
            enqueue=True, retention="1 year")
@@ -39,7 +39,10 @@ def main() -> int:
     con = db_connect(setting)
     try:
         with con.cursor() as cur:
-            for table, (col, default_max) in TABLES.items():
+            tables = {t: v for t, v in TABLES.items() if t != "cwa_Home"}
+            for st in cwa_stations(setting):          # 每個氣象署測站一張表
+                tables[st["table"]] = ("DateTime", 180)
+            for table, (col, default_max) in tables.items():
                 cur.execute(f"SELECT MAX(`{col}`) FROM `{table_name(setting, table)}`")
                 latest = cur.fetchone()[0]
                 limit = timedelta(minutes=limits.get(table, default_max))

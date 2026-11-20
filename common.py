@@ -44,6 +44,21 @@ def table_name(setting: dict, logical_name: str) -> str:
     return setting.get("table_names", {}).get(logical_name, logical_name)
 
 
+def cwa_stations(setting: dict) -> list:
+    """氣象署要抓取的測站清單：[{"id", "label", "table"}, ...]。
+
+    設定檔 cwa.stations 有寫就用它；沒有的話相容舊設定，使用 cwa.params.StationId，
+    寫入 cwa_Home。每個測站各寫一張表（cwa_Home 的主鍵只有 DateTime，不能混存多個測站）。
+    """
+    cwa = setting["cwa"]
+    stations = cwa.get("stations")
+    if stations:
+        return [{"id": s["id"], "label": s.get("label", s["id"]),
+                 "table": s.get("table", "cwa_Home")} for s in stations]
+    return [{"id": cwa["params"].get("StationId") or cwa["params"].get("stationId"),
+             "label": "default", "table": "cwa_Home"}]
+
+
 def redact(text, secrets) -> str:
     """把字串中的密鑰（API key、密碼）換成 ***，避免寫進 log。"""
     text = str(text)

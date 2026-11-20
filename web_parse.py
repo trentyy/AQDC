@@ -15,9 +15,14 @@ def _to_float(value):
         return None
 
 
-def parse_cwa(jdata):
-    """回傳 dict 或 None（無測站資料 / 溫度或濕度缺值）。"""
+def parse_cwa(jdata, station_id=None):
+    """回傳 dict 或 None（無測站資料 / 溫度或濕度缺值）。
+
+    station_id 有指定時，回傳的測站代碼必須相符，避免 API 回了別的測站而寫進錯的表。
+    """
     stations = jdata['records']['Station']
+    if station_id is not None:
+        stations = [s for s in stations if s.get('StationId') == station_id]
     if not stations:
         return None
     station = stations[0]

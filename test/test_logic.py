@@ -143,6 +143,21 @@ class WebParseTest(unittest.TestCase):
         self.assertNotIn("AirPressure", parse_cwa(j))
         self.assertIsNone(parse_cwa({"records": {"Station": []}}))
 
+    def test_cwa_station_id_filter(self):
+        from web_parse import parse_cwa
+        self.assertIsNotNone(parse_cwa(self.cwa, station_id="467571"))
+        self.assertIsNone(parse_cwa(self.cwa, station_id="C0D660"))   # API 回了別的測站
+
+    def test_cwa_stations_setting(self):
+        from common import cwa_stations
+        legacy = {"cwa": {"params": {"StationId": "467571"}}}
+        self.assertEqual(cwa_stations(legacy),
+                         [{"id": "467571", "label": "default", "table": "cwa_Home"}])
+        new = {"cwa": {"params": {}, "stations": [
+            {"id": "CAD090", "label": "home", "table": "cwa_Home"},
+            {"id": "C0D660", "label": "work", "table": "cwa_Work"}]}}
+        self.assertEqual([s["table"] for s in cwa_stations(new)], ["cwa_Home", "cwa_Work"])
+
     epa = [
         {"itemengname": "PM10", "monitordate": "2026-11-20 14:00", "concentration": "30"},
         {"itemengname": "PM2.5", "monitordate": "2026-11-20 15:00", "concentration": "11"},
