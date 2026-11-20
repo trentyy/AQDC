@@ -8,6 +8,7 @@
 - 位址：預設 `127.0.0.1:9106`；`AQDC-home.json` 的 `metrics.host/port` 或環境變數 `AQDC_METRICS_HOST/PORT` 可改。拒絕綁 `0.0.0.0`；綁定失敗每 30 秒重試，不影響主迴圈。
 - `service/AQDC_local.service` 加 `After=tailscaled.service` 與 `Wants=tailscaled.service`。
 - 新增 `test/test_metrics.py`。
+- rpi4-4g 部署：`setting/AQDC-home.json` 加 `"metrics": {"host": "100.122.167.97", "port": 9106}`（Tailscale IP，不綁 0.0.0.0 也不綁 127.0.0.1）；新 service 檔已安裝並重啟 `AQDC_local`。`curl http://100.122.167.97:9106/metrics` 的數值與四張表最新一筆一致。
 
 ## 2026-11-20 穩定性與正確性修正
 
