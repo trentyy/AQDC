@@ -1,0 +1,63 @@
+# 修改紀錄
+
+## 2026-11-20 穩定性與正確性修正
+
+依程式審查的建議逐項修正。**未在實機上執行**：開發環境沒有 Python / Arduino / 感測器，
+只有純邏輯部分寫了單元測試（`test/test_logic.py`），部署後請依 README 的「驗證」一節確認。
+
+### 新增檔案
+| 檔案 | 用途 |
+|---|---|
+| `common.py` | 共用的設定載入、資料庫連線（含逾時）、log 密鑰遮蔽，取代各程式重複的程式碼 |
+| `sensor_parse.py` | 解析 Arduino JSON 並檢查數值範圍（純函式） |
+| `actor_logic.py` | 除濕機的時段比對、狀態挑選、在家判斷（純函式） |
+| `healthcheck.py`、`service/AQDC_health.*` | 資料新鮮度檢查，過期則記錄並可選擇 webhook 通知 |
+| `test/test_logic.py` | 上述純邏輯的單元測試 |
+| `CHANGELOG.md`、`MIGRATION.md` | 本紀錄、舊版升級說明 |
+
+### Bug 修正
+| 檔案 | 問題 → 修正 |
+|---|---|
+| `readElectricity.py` | 時間用 `gmtime`（UTC），其他程式用本地時間 → 改為本地時間（**舊資料需遷移**，見 MIGRATION.md） |
+| `readWeb.py` | 從 `urllib.error` 匯入 `HTTPError`，抓不到 `requests` 的例外 → 改用 `requests` 的例外，並改為 `raise_for_status()` 後統一處理 |
+| `readWeb.py` | `requests.get` 沒有 timeout，對方不回應會永久卡住 → 加 15 秒 timeout |
+| `readWeb.py` | `except` 內引用可能未定義的 `cwa_dict`（`NameError`）→ 重寫流程，不再有此狀況 |
+| `readWeb.py` | `async` 內呼叫同步 `requests` / `time.sleep`，沒有實際非同步效果 → 改為普通同步迴圈 |
+| `readWeb.py` | SQL 以字串拼接，欄位名與值來自外部資料 → 參數化查詢 + 欄位白名單 |
+| `readWeb.py` | 例外訊息會把含 API key 的 URL 寫進 log → 以 `redact()` 遮蔽；移除每次輪詢的 `print(json.dumps(data))` |
+| `readWeb.py` | EPA 回傳空陣列時 `item` 未定義 → 檢查後回傳 None |
+| `readWeb.py` | CWA / EPA 任一失敗會連帶影響另一邊 → 兩個來源各自處理；成功後 10 分鐘、失敗後 1 分鐘重試 |
+| `readElectricity.py` | 設定檔路徑 `AQDC-home.json` 與其他程式的 `./setting/` 不一致 → 統一走 `common.py` |
+| `readElectricity.py` | 辨識失敗 / 二次確認時沒有 `sleep`，會空轉狂拍照 → 等待 30 秒 |
+| `readElectricity.py` | `except` 內 `print(sql)` 時 `sql` 可能未定義；`finally` 內 `camera` 可能未定義 → 修正 |
+| `readElectricity.py` | SQL 字串拼接 → 參數化；`DEBUG` 預設改為關閉（`AQDC_DEBUG=1` 開啟） |
+| `Arduino/readData_JSON` | `dht_t==NAN` 永遠為 false → 改 `isnan()`，且最多重試 5 次，不再可能無限迴圈 |
+
+### 感測器資料（Sensor）
+- **讀取失敗不再送舊值**：PMS7003 讀不到時改送 `null`（原本沿用上一次的值）；MH-Z19B 回 0、DS18B20 回 -127 也送 `null`。
+- **數值範圍檢查**（`sensor_parse.py`）：CO2 300–5000、濕度 0–100、溫度 -40–85 等，超出範圍的感測器整組不寫入並記錄 warning。
+- **序列埠**：`readline` 加 timeout；積壓多行時只取最新一行（原本會把舊資料全部標上現在時間）；`SerialException`（USB 掉線）自動重連；資料庫錯誤自動重試。
+- **四張表寫入同一個交易**，失敗整批 rollback。
+
+### 除濕機控制（`actor.py`）
+- **主迴圈錯誤處理**：API / 資料庫例外只記錄並進入下一輪，不再讓程式崩潰；連續失敗 3 次後自動重新登入。啟動時登入失敗也會重試。
+- **資料新鮮度**：CO2、濕度資料超過 15 分鐘沒更新視為失效。CO2 失效時維持原在家狀態；濕度失效時不做自動開/關機。
+- **在家判斷**（`PresenceDetector`）：取近 10 分鐘平均；平均 > 600 ppm 判定在家，平均 < 500 ppm 且持續 30 分鐘才判定外出，500–600 之間維持原狀態。（原本單點 > 600 即在家）
+- **時段比對**：區間改為「起點含、終點不含」（原本整點那一分鐘會漏掉）；支援跨午夜（`start_time > end_time`）。
+- **預設狀態明確化**：都不符合時使用 `state` 編號最小的一筆（行為與舊版相同，但不再依賴迴圈變數殘留）；表為空時記錄錯誤並略過該輪。
+- **設定套用**：狀態改變，或同一狀態的 `humid_setting` / `set_fan_speed` 被改過時就套用（原本只有狀態改變時才套用）；套用失敗不更新狀態，下一輪重試。
+- **重複指令**：同一道指令 3 分鐘內不重送，避免雲端狀態延遲造成重複下指令。
+- **壓縮機保護**：濕度自動開/關機之間至少間隔 10 分鐘（電源按鈕強制關機與 `auto_turn_off=0` 開機不受限）。
+- **其他**：每輪只開一個資料庫連線；改用 loguru 寫 `./log/actor.log`；修正「高於上限」訊息誤印下限值；移除 `print` 內寫死的 `600`。
+- 上述門檻都可在 `AQDC-actor.json` 內選填覆蓋（見 README）。
+
+### 部署
+- 所有 service 加上 `RestartSec=10`，避免異常時快速重啟迴圈。
+- `.gitignore` 加入 `log/`。
+- `setting_example/AQDC-home-default.json` 加入選填的 `healthcheck`。
+
+### 未處理（刻意保留）
+- `Arduino`：`pms.passiveMode()` 仍為註解、`autoCalibration()` 仍為開啟、`delay(60000)` 與 SoftwareSerial 輪流 `listen()` 的架構未動——這些會改變硬體行為，需要實機驗證，建議另外測試。
+- `readElectricity.py`：七段顯示器 OCR 的裁切座標與閾值仍為寫死；建議長期改用智慧插座 / PZEM-004T 這類可直接回報電壓電流的設備。
+- `api/app/main.py`（冰箱 AM2108 API）未審查也未修改；已知會 `print` 含密碼的資料庫連線字串、並以 `debug=True` 啟動。
+- 服務間仍以資料庫輪詢溝通（未導入 MQTT / Home Assistant）。

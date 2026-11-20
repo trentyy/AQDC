@@ -1,0 +1,9 @@
+[Unit]
+Description=AQDC data freshness check
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/pi/Github/AQDC/.venv/bin/python -u healthcheck.py
+WorkingDirectory=/home/pi/Github/AQDC
+User=pi

@@ -19,5 +19,9 @@
         {
             "api_key": "YOUR_KEY"
         }
+    },
+    "healthcheck":
+    {
+        "notify_url": ""
     }
 }

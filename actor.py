@@ -1,196 +1,229 @@
-import traceback
-import time
-import json
-import datetime
-import pymysql.cursors
-from datetime import timedelta
-# from loguru import logger
+"""AQDC actor：依在家狀態、時段與濕度控制日立除濕機 (RD-200HH1)。
 
+邏輯（時段比對、在家判斷）在 actor_logic.py，這裡負責資料庫與雲端 API。
+"""
+import time
+from datetime import datetime, timedelta
+
+from loguru import logger
 from JciHitachi.api import JciHitachiAWSAPI
+
+from actor_logic import PresenceDetector, pick_state
+from common import db_connect, load_home_setting, load_setting
+
+logger.add("./log/actor.log", rotation="monthly", encoding="utf-8",
+           enqueue=True, retention="1 year")
+
+LOOP_SECONDS = 60
+STATE_COLUMNS = ["state", "in_home", "start_time", "end_time",
+                 "humid_setting", "humid_lower_limit", "humid_upper_limit",
+                 "set_fan_speed", "description"]
+
+# 以下參數都可以在 setting/AQDC-actor.json 內用同名鍵覆蓋，沒寫就用預設值
+DEFAULTS = {
+    "CO2_HOME_PPM": 600,        # 平均 CO2 高於此值 -> 在家
+    "CO2_AWAY_PPM": 500,        # 平均 CO2 低於此值且持續 AWAY_MINUTES -> 外出
+    "AWAY_MINUTES": 30,
+    "CO2_WINDOW_MINUTES": 10,   # CO2 取最近幾分鐘的平均
+    "SENSOR_STALE_MINUTES": 15,  # 感測器資料超過幾分鐘沒更新視為失效
+    "MIN_SWITCH_SECONDS": 600,  # 濕度自動開/關機的最短間隔，保護壓縮機
+    "COMMAND_COOLDOWN_SECONDS": 180,  # 同一道指令的重送間隔（雲端狀態更新有延遲）
+}
+
 
 class StateMachine(object):
     def __init__(self) -> None:
-        print("initiating...")
-        self.FANSPEED = {"silent" : 1, "low" : 2, "moderate" : 3, "high" : 4}
+        logger.info("initiating...")
+        self.FANSPEED = {"silent": 1, "low": 2, "moderate": 3, "high": 4}
 
-        with open("./setting/AQDC-home.json", 'r') as f:
-            jdata = json.load(f)
+        self.home = load_home_setting()
+        actor = load_setting("AQDC-actor.json")
+        self.EMAIL = actor['EMAIL']
+        self.PASSWORD = actor['PASSWORD']
+        self.DEVICENAME = actor['DEVICENAME']
+        self.opt = {k: actor.get(k, v) for k, v in DEFAULTS.items()}
 
-        self.HOST = jdata['host']
-        self.USER = jdata['user']
-        self.PW = jdata['pw']
-        self.DB = jdata['db']
-
-        with open("./setting/AQDC-actor.json", 'r') as f:
-            jdata = json.load(f)
-        self.EMAIL = jdata['EMAIL']
-        self.PASSWORD = jdata['PASSWORD']
-        self.DEVICENAME = jdata['DEVICENAME']
-
-        flag = False
+        self.presence = PresenceDetector(
+            home_ppm=self.opt["CO2_HOME_PPM"],
+            away_ppm=self.opt["CO2_AWAY_PPM"],
+            away_minutes=self.opt["AWAY_MINUTES"],
+            window_minutes=self.opt["CO2_WINDOW_MINUTES"],
+            stale_minutes=self.opt["SENSOR_STALE_MINUTES"],
+        )
 
         self.api = JciHitachiAWSAPI(self.EMAIL, self.PASSWORD, self.DEVICENAME)
-        self.api.login()
+        self.login()
 
-        self.state = 0
+        self.state = None           # 已成功套用的狀態編號
         self.state_config = None
-        self.updateConfig()
-        self.updateState(isBooting=True)
-        print("...initiate finished")
+        self.applied_sig = None     # 已成功套用的 (風速, 濕度設定)
+        self.last_cmd = {}          # (名稱, 值) -> 上次送出時間
+        self.last_switch_value = None
+        self.last_switch_change = None
+        logger.info("...initiate finished")
 
+    # ---------- 雲端 API ----------
+    def login(self):
+        while True:
+            try:
+                self.api.login()
+                logger.info("login ok")
+                return
+            except Exception as e:
+                logger.error(f"login failed: {e!r}, retry in 60s")
+                time.sleep(60)
 
-    def isInHome(self, threshold=600):
-        sql = "SELECT `time`, `co2` FROM `home_mhz19b` ORDER BY `time` DESC LIMIT 1;"
-        con=pymysql.connect(host=self.HOST, user=self.USER, passwd=self.PW, db=self.DB)
-        with con.cursor() as cur:
-            cur.execute(sql)
-            result = cur.fetchall()
-        con.close()
-        co2 = result[0][1]
-        if co2 > threshold:
-            print(f"isInHome: co2={co2}>{600}")
-            return True
-        else:
-            print(f"isInHome: co2={co2}<={600}")
+    def _send(self, name, value) -> bool:
+        """送出一道設定指令；失敗不丟例外，回傳是否成功。
+        同一道指令在冷卻時間內不重送（雲端狀態更新較慢，避免重複下指令）。"""
+        key = (name, value)
+        now = time.monotonic()
+        last = self.last_cmd.get(key)
+        if last is not None and now - last < self.opt["COMMAND_COOLDOWN_SECONDS"]:
+            logger.debug(f"skip {name}={value}: sent {now - last:.0f}s ago")
             return False
-
-
-    def isSpecifiedTime(
-            self,
-            curTime:timedelta,
-            startTime: timedelta,
-            endTime: timedelta,):
-        if startTime < curTime < endTime:
-            return True
-        else:
+        try:
+            self.api.set_status(status_name=name, device_name=self.DEVICENAME,
+                                status_value=value)
+        except Exception as e:
+            logger.error(f"set_status {name}={value} failed: {e!r}")
             return False
+        self.last_cmd[key] = now
+        if name == "Switch":
+            self.last_switch_change = now
+        logger.info(f"set_status: {name}={value}")
+        return True
 
+    # ---------- 讀取資料 ----------
+    def refresh(self):
+        """一次取得雲端狀態與資料庫的所有資料（單一連線）。"""
+        status = self.api.get_status()
+        self.device_status = status[self.DEVICENAME].status
 
-    def updateConfig(self):
-        device_status = self.api.get_status()
-        self.device_status = device_status[self.DEVICENAME].status
+        # 手動操作機器也算一次開關變化，納入最短間隔計算
+        sw = self.device_status["Switch"]
+        if self.last_switch_value is not None and sw != self.last_switch_value:
+            self.last_switch_change = time.monotonic()
+        self.last_switch_value = sw
 
-        con = pymysql.connect(host=self.HOST, user=self.USER, passwd=self.PW, db=self.DB)
-        sql = "SELECT `power`,`auto_turn_off` from `actor_RD-200HH1_botton`"
-        with con.cursor() as cur:
-            cur.execute(sql)
-            result = cur.fetchall()
-        self.power, self.auto_turn_off = result[0]
-        sql = "SELECT `time`,`humidity` from `home_dht22` ORDER BY `time` DESC limit 1"
-        with con.cursor() as cur:
-            cur.execute(sql)
-            result = cur.fetchall()
-            self.humidity = result[0][1]
-        con.close()
+        now = datetime.now()
+        con = db_connect(self.home)
+        try:
+            with con.cursor() as cur:
+                cur.execute("SELECT `power`,`auto_turn_off` FROM `actor_RD-200HH1_botton`")
+                row = cur.fetchone()
+                if row is None:
+                    raise ValueError("table actor_RD-200HH1_botton is empty")
+                self.power, self.auto_turn_off = row
 
-        data = ["state", "in_home", "start_time", "end_time",
-                "humid_setting", "humid_lower_limit", "humid_upper_limit",
-                "set_fan_speed", "description"]
-        
-        items =  ["SELECT `"]
-        items.append("`,`".join(data))
-        items.append("` from `actor_RD-200HH1` ORDER BY `state` DESC")
-        sql = "".join(items)
+                cur.execute("SELECT `time`,`humidity` FROM `home_dht22` ORDER BY `time` DESC LIMIT 1")
+                row = cur.fetchone()
+                stale = timedelta(minutes=self.opt["SENSOR_STALE_MINUTES"])
+                if row is None or row[1] is None or now - row[0] > stale:
+                    logger.warning(f"humidity data missing or stale: {row}")
+                    self.humidity = None
+                else:
+                    self.humidity = row[1]
 
-        # get states in raw data
-        con = pymysql.connect(host=self.HOST, user=self.USER, passwd=self.PW, db=self.DB)
-        with con.cursor() as cur:
-            cur.execute(sql)
-            result = cur.fetchall()
-        con.close()
+                cur.execute("SELECT `time`,`co2` FROM `home_mhz19b` ORDER BY `time` DESC LIMIT 30")
+                self.co2_samples = list(cur.fetchall())
 
-        # parse states data
-        self.states = []
-        for i in range(len(result)):
-            self.states.append(
-                {data[j]: result[i][j] for j in range(len(data))}
-                )
+                cols = "`,`".join(STATE_COLUMNS)
+                cur.execute(f"SELECT `{cols}` FROM `actor_RD-200HH1` ORDER BY `state` DESC")
+                self.states = [dict(zip(STATE_COLUMNS, r)) for r in cur.fetchall()]
+        finally:
+            con.close()
 
+    # ---------- 狀態與設定 ----------
+    def updateState(self):
+        now = datetime.now()
+        t = timedelta(hours=now.hour, minutes=now.minute)
 
-    def updateState(self, isBooting=False):
-        # get time
-        t = datetime.datetime.now()
-        t = datetime.timedelta(
-            hours=t.hour,
-            minutes=t.minute
-            )
-        
-        # decide next state
-        next_state = 0
-        isInHome = self.isInHome()
-        
-        for state in self.states:
-            start_time, end_time = state["start_time"], state["end_time"]
-            isSpecifiedTime = self.isSpecifiedTime(t, start_time, end_time)
-            
-            if (isSpecifiedTime and (isInHome == state["in_home"])):
-                next_state = state["state"]
-                self.state_config = state
-                break
-        else:
-            print("for else: state=")
-            print(state)
-            next_state = state["state"]
-            self.state_config = state
-        print(f"updateState\nCurrent state:{self.state}, next state: {next_state}")
-        print(f"self.state_config:{self.state_config}")
+        in_home = self.presence.update(self.co2_samples, now)
+        if self.presence.stale:
+            logger.warning(f"co2 data missing or stale, keep in_home={in_home}")
 
-        # update state setting
-        if (next_state != self.state) or isBooting:
-            self.setDeviceSetting()
-            self.state = next_state
+        state = pick_state(self.states, t, in_home)
+        next_state = state["state"]
+        self.state_config = state
+        sig = (state["set_fan_speed"], state["humid_setting"])
 
+        # 狀態改變，或同一狀態的設定被改過（舊版只會在狀態改變時才套用）才下指令；
+        # 其餘時間不干涉，所以手動調整機器不會被每分鐘覆蓋
+        if next_state != self.state or sig != self.applied_sig:
+            logger.info(f"state {self.state} -> {next_state} (in_home={in_home}), config={state}")
+            if self.setDeviceSetting():
+                self.state = next_state
+                self.applied_sig = sig
+            else:
+                logger.warning("apply setting failed, will retry next loop")
 
-    def setDeviceSetting(self):
-        curFanSpeed = self.FANSPEED[self.device_status["FanSpeed"]]
-        FanSpeedSetting = self.state_config["set_fan_speed"]
+    def setDeviceSetting(self) -> bool:
+        ok = True
+        want_fan = self.state_config["set_fan_speed"]
+        cur_fan = self.FANSPEED.get(self.device_status["FanSpeed"])
+        if cur_fan != want_fan:
+            ok = self._send("FanSpeed", want_fan) and ok
 
-        if curFanSpeed != FanSpeedSetting:
-            self.api.set_status(
-                status_name="FanSpeed",
-                device_name=self.DEVICENAME,
-                status_value=FanSpeedSetting
-            )
-            print("set_status: FanSpeed=", FanSpeedSetting)
+        want_humid = self.state_config["humid_setting"]
+        if self.device_status["HumiditySetting"] != want_humid:
+            ok = self._send("HumiditySetting", want_humid) and ok
+        return ok
 
-        curHumiditySetting = self.device_status["HumiditySetting"]
-        HumiditySetting = self.state_config["humid_setting"]
-        if curHumiditySetting != HumiditySetting:
-            self.api.set_status(
-                status_name="HumiditySetting",
-                device_name=self.DEVICENAME,
-                status_value=self.state_config["humid_setting"]
-            )
-            print("set_status: HumiditySetting=", self.state_config["humid_setting"])
+    # ---------- 開關控制 ----------
+    def _switch_interval_ok(self) -> bool:
+        if self.last_switch_change is None:
+            return True
+        return time.monotonic() - self.last_switch_change >= self.opt["MIN_SWITCH_SECONDS"]
 
     def checkAlwaysOff(self):
+        """電源按鈕設為關閉時，強制關機（不受最短間隔限制）。"""
         if self.device_status["Switch"] == 'on' and not self.power:
-            self.api.set_status(status_name="Switch", device_name=self.DEVICENAME, status_value=0)
-
+            logger.info("power button is off -> turn off")
+            self._send("Switch", 0)
 
     def autoTurnOffFunction(self):
         if not self.power:
             return
+        cfg = self.state_config
+        sw = self.device_status['Switch']
 
-        if self.device_status['Switch'] == 'on':
-            if (self.humidity < self.state_config["humid_lower_limit"]) and (self.auto_turn_off == 1):
-                self.api.set_status(status_name="Switch", device_name=self.DEVICENAME, status_value=0)
-                print(f"power botton set to 1, 目前濕度{self.humidity}低於設定濕度下限{self.state_config['humid_lower_limit']}===>關閉除濕機")
-        elif self.device_status['Switch'] == 'off':
+        if sw == 'on':
+            if self.auto_turn_off != 1:
+                return
+            if self.humidity is None:
+                return  # 濕度資料失效時不自動關機
+            if self.humidity < cfg["humid_lower_limit"] and self._switch_interval_ok():
+                self._send("Switch", 0)
+                logger.info(f"humidity {self.humidity} < lower limit {cfg['humid_lower_limit']} -> turn off")
+        elif sw == 'off':
             if self.auto_turn_off == 0:
-                self.api.set_status(status_name="Switch", device_name=self.DEVICENAME, status_value=1)
-                print(f"power botton set to 1, 自動關閉送風模式為0===>開啟除濕機")
-            elif self.humidity >= self.state_config["humid_upper_limit"]:
-                self.api.set_status(status_name="Switch", device_name=self.DEVICENAME, status_value=1)
-                print(f"power botton set to 1, 目前濕度{self.humidity}高於設定濕度上限{self.state_config['humid_lower_limit']}===>開啟除濕機")
+                self._send("Switch", 1)
+                logger.info("auto_turn_off is 0 -> turn on")
+            elif (self.humidity is not None
+                  and self.humidity >= cfg["humid_upper_limit"]
+                  and self._switch_interval_ok()):
+                self._send("Switch", 1)
+                logger.info(f"humidity {self.humidity} >= upper limit {cfg['humid_upper_limit']} -> turn on")
+
+    def run_cycle(self):
+        self.refresh()
+        self.updateState()
+        self.checkAlwaysOff()
+        self.autoTurnOffFunction()
 
 
 if __name__ == "__main__":
     dehumidifier = StateMachine()
-
-    while(True):
-        dehumidifier.updateConfig()
-        dehumidifier.updateState()
-        dehumidifier.checkAlwaysOff()
-        dehumidifier.autoTurnOffFunction()
-        time.sleep(60)
+    failures = 0
+    while True:
+        try:
+            dehumidifier.run_cycle()
+            failures = 0
+        except Exception:
+            failures += 1
+            logger.exception(f"cycle failed ({failures} in a row)")
+            # 連續失敗時重新登入（token 過期是常見原因），之後每 5 次再試一次
+            if failures % 5 == 3:
+                dehumidifier.login()
+        time.sleep(LOOP_SECONDS)

@@ -1,100 +1,106 @@
 #!/usr/bin/python3
+"""從 Arduino（序列埠 JSON）讀取感測器資料並寫入資料庫。"""
 
-import traceback, time, json
+import json
+import time
+
+import pymysql
 import serial
-import pymysql.cursors
 from loguru import logger
 
-# log file name
-trace = logger.add("./log/readSensor.log", rotation="monthly", encoding="utf-8", enqueue=True, retention="1 year")
+from common import db_connect, load_home_setting
+from sensor_parse import parse_payload
+
+logger.add("./log/readSensor.log", rotation="monthly", encoding="utf-8",
+           enqueue=True, retention="1 year")
 
 COM_PORT = '/dev/ttyACM0'
 BAUD_RATE = 9600
+SERIAL_TIMEOUT = 5      # 秒；readline 逾時回傳空字串，不會永久阻塞
+RETRY_SECONDS = 30      # 序列埠 / 資料庫失敗後的重試間隔
 
-ser = serial.Serial(COM_PORT, BAUD_RATE)
 
-with open("./setting/AQDC-home.json", 'r') as f:
-    jdata = json.load(f)
+def open_serial():
+    while True:
+        try:
+            ser = serial.Serial(COM_PORT, BAUD_RATE, timeout=SERIAL_TIMEOUT)
+            logger.info(f"serial opened: {COM_PORT}")
+            return ser
+        except serial.SerialException as e:
+            logger.error(f"cannot open {COM_PORT}: {e}, retry in {RETRY_SECONDS}s")
+            time.sleep(RETRY_SECONDS)
 
-HOST = jdata['host']
-USER = jdata['user']
-PW = jdata['pw']
-DB = jdata['db']
 
-con=pymysql.connect(host=HOST, user=USER, passwd=PW, db=DB)
+def read_latest_line(ser):
+    """讀一行；若緩衝區已積了多行，丟掉舊的只留最新一行。"""
+    line = ser.readline()
+    skipped = 0
+    while ser.in_waiting:
+        line = ser.readline()
+        skipped += 1
+    if skipped:
+        logger.warning(f"serial backlog, skipped {skipped} old line(s)")
+    return line
 
-counter = 0
 
-while True:
+def save(con, curtime, rows):
+    """四張表的寫入放在同一個交易，其中一張失敗就整批 rollback。"""
+    con.ping(reconnect=True)
     try:
-        counter += 1
-        while ser.in_waiting:
-            raw_data = ser.readline()
-            data = raw_data.decode()
-            print(data)
-            jdata = json.loads(data)
+        with con.cursor() as cur:
+            for table, columns, values in rows:
+                cols = ",".join(f"`{c}`" for c in ["time"] + columns)
+                marks = ",".join(["%s"] * (len(columns) + 1))
+                cur.execute(f"INSERT INTO `{table}`({cols}) VALUES ({marks})",
+                            [curtime] + values)
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
+
+
+def main():
+    setting = load_home_setting()
+    con = db_connect(setting)
+    ser = open_serial()
+
+    while True:
+        try:
+            raw = read_latest_line(ser)
+            if not raw:
+                continue  # 逾時沒收到資料
+            jdata = json.loads(raw.decode())
             logger.info(jdata)
-            
-            DS18B20 = jdata["DS18B20"]
-            DHT22 = jdata["DHT22"]
-            PMS7003 = jdata["PMS7003"]
-            MHZ19B = jdata["MHZ19B"]
+
+            rows, rejected = parse_payload(jdata)
+            if rejected:
+                logger.warning(f"rejected: {rejected}")
+            if not rows:
+                continue
 
             curtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            
-            sql = "INSERT INTO `home_ds18b20`(`time`,`temperature`)"
-            sql += " VALUES (%s,%s)"
-            print(sql, (curtime, DS18B20["Temperature"]))
-            
-            sql1 = "INSERT INTO `home_dht22`(`time`,`temperature`,`humidity`)"
-            sql1 += " VALUES (%s,%s,%s)"
-            print(sql1, (curtime, DHT22["Temperature"], DHT22["Humidity"]))
+            save(con, curtime, rows)
+            logger.success(f"saved: {[r[0] for r in rows]}")
 
-            sql2 = "INSERT INTO `home_pms7003`(`time`,`pm1`,`pm2_5`,`pm10`)"
-            sql2 += " VALUES (%s,%s,%s,%s)"
-            print(sql2, (curtime, PMS7003["PM1"],PMS7003["PM2_5"],PMS7003["PM10"]))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            logger.warning("bad line from serial, skip")
+        except (KeyError, TypeError, AttributeError) as e:
+            logger.warning(f"unexpected payload structure: {e!r}")
+        except serial.SerialException as e:
+            logger.error(f"serial error: {e}, reopen in {RETRY_SECONDS}s")
+            try:
+                ser.close()
+            except Exception:
+                pass
+            time.sleep(RETRY_SECONDS)
+            ser = open_serial()
+        except pymysql.err.MySQLError as e:
+            logger.error(f"database error: {e!r}, retry in {RETRY_SECONDS}s")
+            time.sleep(RETRY_SECONDS)
+        except KeyboardInterrupt:
+            logger.info("KeyboardInterrupt, exit")
+            break
 
-            sql3 = "INSERT INTO `home_mhz19b`(`time`,`temperature`,`co2`)"
-            sql3 += " VALUES (%s,%s,%s)"
-            print(sql3, (curtime, MHZ19B["Temperature"], MHZ19B["CO2"]))
-            
-            con.ping(reconnect=True)
 
-            
-            with con.cursor() as cur:
-                isNone = False
-                for key, value in DS18B20.items():
-                    if value == None:   isNone = True
-                if not isNone:  cur.execute(sql, (curtime, DS18B20["Temperature"]))
-
-                isNone = False
-                for key, value in DHT22.items():
-                    if value == None:   isNone = True
-                if not isNone:  cur.execute(sql1, (curtime,DHT22["Temperature"], DHT22["Humidity"]))
-                isNone = False
-                for key, value in PMS7003.items():
-                    if value == None:   isNone = True
-                if not isNone:  cur.execute(sql2, (curtime,PMS7003["PM1"],PMS7003["PM2_5"],PMS7003["PM10"]))
-                isNone = False
-                for key, value in MHZ19B.items():
-                    if value == None:   isNone = True
-                if not isNone:  cur.execute(sql3, (curtime, MHZ19B["Temperature"], MHZ19B["CO2"]))
-            con.commit()
-            logger.success("update success")
-            """
-            except Exception as e:
-                print(traceback.format_exc())
-            finally:
-                print("sql success")
-            """
-        time.sleep(60)
-    except UnicodeDecodeError:
-        print("UnicodeDecodeError, continue")
-    except json.decoder.JSONDecodeError:
-        print("JSONDecodeError, continue")
-    except pymysql.err.OperationalError:
-        traceback.print_exc()
-        print("pymysql.err.OperationalError, sleep 1 min and continue")
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt, program exit")
-        raise KeyboardInterrupt
+if __name__ == "__main__":
+    main()

@@ -17,7 +17,10 @@ import pytesseract
 import cv2
 import matplotlib.pyplot as plt
 
-DEBUG = True
+from common import db_connect, load_home_setting
+
+# 設 AQDC_DEBUG=1 才會輸出偵測區域的除錯圖（預設關閉）
+DEBUG = os.getenv("AQDC_DEBUG", "0") == "1"
 
 PWM_FREQ = 50
 vServoPIN = 12
@@ -37,6 +40,7 @@ def ang2dc(angle: int):
 
 def capture_pic(move=True):
     filename = ""
+    camera = None  # 避免 PiCamera() 失敗時 finally 內的 camera 未定義
     try:
         if move:
             GPIO.setmode(GPIO.BCM)
@@ -67,7 +71,8 @@ def capture_pic(move=True):
     except Exception as e:
         raise e
     finally:
-        camera.close()
+        if camera is not None:
+            camera.close()
         if move:
             GPIO.cleanup()
     return filename
@@ -229,20 +234,11 @@ def readVA(binary):
 # log file name
 trace = logger.add("./log/readElectricity.log", rotation="monthly", encoding="utf-8", enqueue=True, retention="1 year")
 
-
-with open("AQDC-home.json", 'r') as f:
-    jdata = json.load(f)
-
-HOST = jdata['host']
-USER = jdata['user']
-PW = jdata['pw']
-DB = jdata['db']
-
-con=pymysql.connect(host=HOST, user=USER, passwd=PW, db=DB)
-
-counter = 0
+RETRY_SECONDS = 30  # 辨識失敗 / 需要二次確認時的等待時間，避免空轉狂拍照
 
 if __name__ == "__main__":
+    os.makedirs("./pic", exist_ok=True)
+    con = db_connect(load_home_setting())
     double_check = True
     while True:
         try:
@@ -254,30 +250,28 @@ if __name__ == "__main__":
                 double_check = True
                 os.remove(filename)
             elif (double_check):
+                # 電流異常偏高時先重讀一次確認，照片保留供檢查
                 double_check = False
+                sleep(RETRY_SECONDS)
                 continue
 
-
-            # prepare date to store
-            curtime = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-            data = {"time": curtime,
-                    "Voltage": V,
-                    "Ampere": A}
-            sql = "INSERT INTO `home_electricity`(`time`,`Voltage`,`Ampere`)"
-            sql += f" VALUES ('{curtime}',{V},{A})"
+            # 與 readSensor.py 一致，使用本地時間（原本是 UTC，見 MIGRATION.md）
+            curtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
             con.ping(reconnect=True)
-
             with con.cursor() as cur:
-                isNone = False
-                for key, value in data.items():
-                    if value == None:   isNone = True
-                if not isNone:  cur.execute(sql)
+                cur.execute(
+                    "INSERT INTO `home_electricity`(`time`,`Voltage`,`Ampere`) VALUES (%s,%s,%s)",
+                    (curtime, V, A))
             con.commit()
-            logger.success(sql)
+            logger.success(f"home_electricity: {curtime} V={V} A={A}")
             sleep(60)
         except ValueError as e:
-            logger.debug(e)
+            logger.warning(f"read failed: {e!r}, retry in {RETRY_SECONDS}s")
+            sleep(RETRY_SECONDS)
+        except pymysql.err.MySQLError as e:
+            logger.error(f"database error: {e!r}, retry in {RETRY_SECONDS}s")
+            sleep(RETRY_SECONDS)
         except Exception as e:
-            print(sql)
-            raise e
+            logger.exception(e)
+            raise

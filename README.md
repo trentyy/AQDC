@@ -1,78 +1,153 @@
-# Air Quality Data Collector
+# AQDC — Air Quality Data Collector
 
-In order to keep tracking the air quality such as CO2( which will make people drowsy), TVOC (Total Volatile Organic Compounds, which might damage people's health), temperature, humidity to make people feel more comfortable in the room. I want to build a data center, to collect data from types of sensors and plot these data in a website, also I want to compare these data with outside weather by the collected data from the government.
+收集室內空氣品質（CO2、PM、溫濕度、用電）與戶外氣象 / 空品資料存入 MySQL，
+並依在家狀態與濕度自動控制日立除濕機（RD-200HH1）。資料可用 Grafana 顯示。
 
-## Hardware
+> 從舊版升級請看 [MIGRATION.md](MIGRATION.md)；修改內容見 [CHANGELOG.md](CHANGELOG.md)。
 
-### Server:
+## 架構
 
-* Raspberry Pi 4
+```
+Arduino ──USB 序列埠 JSON──▶ readSensor.py ──┐
+Pi Camera ─(七段顯示器 OCR)─▶ readElectricity.py ─┤
+氣象署 / 環境部 API ────────▶ readWeb.py ─────┼──▶ MySQL ◀── Grafana
+                                              │      ▲
+                       actor.py ◀─────────────┘      │ 讀 CO2 / 濕度 / 狀態設定
+                          └──▶ 日立雲端 API ──▶ 除濕機   healthcheck.py（檢查資料是否過期）
+```
 
-### Data collector:
+| 程式 | 作用 | systemd |
+|---|---|---|
+| `readSensor.py` | 讀 Arduino（DS18B20、DHT22、PMS7003、MH-Z19B）寫入資料庫 | `AQDC_local` |
+| `readWeb.py` | 每 10 分鐘抓氣象署 / 環境部資料 | `AQDC_cwa` |
+| `readElectricity.py` | 拍照讀延長線電錶的電壓電流（需要 Pi Camera） | `AQDC_electricity` |
+| `actor.py` | 控制除濕機 | `AQDC_actor` |
+| `healthcheck.py` | 檢查各表是否太久沒有新資料 | `AQDC_health.timer` |
+| `api/` | 冰箱溫濕度（AM2108）的收資料 API，Docker 部署 | docker compose |
 
-* Arduino Uno
-* Raspberry Pi 4 for Raspberry Pi Camera 2(new)
+共用程式：`common.py`（設定 / 資料庫）、`sensor_parse.py`（資料檢查）、`actor_logic.py`（控制邏輯）。
 
-### Sensor:
+## 硬體
 
-* DS18B20: detect **temperature**
-* DHT22: detect **Humidity** and temperature
-* SHARP GP2Y1014AU: detect **PM2.5** 
-* Gravity CCS811: detect **CO2** and **TVOC**
-* Raspberry Pi Camera 2(for the power consumption of extension cord)
+- Raspberry Pi（伺服器、資料收集、跑所有 Python 服務）
+- Arduino Uno + 感測器：DS18B20（溫度）、DHT22（溫濕度）、PMS7003（PM1 / PM2.5 / PM10）、MH-Z19B（CO2）、I2C LCD 2004
+- Raspberry Pi Camera（拍延長線的電錶）
+- 日立除濕機 RD-200HH1（透過 LibJciHitachi 雲端 API 控制）
 
-## Software:
-## Libraries:
-* Raspberry Pi:
-    * pyserial
-    * arduino
-    * arduino-mk
-* Arduino:
-  * [pusubclient](https://github.com/knolleary/pubsubclient)
-  * [ArduinoJson](https://arduinojson.org/)
-  * DFRobot_CCS811
-  * DallasTemperature
-  * OneWire
-  * DHT
-  * PMS
-  * SoftwareSerial
+## 部署（Raspberry Pi）
 
-## Working Goals:
-to show the data collected from local and opensourse website and manage a way to show them
+### 1. 系統設定
 
-## Workflow:
-1. Collect data from local, and save them into db
-2. Collect data from web, and save them into db
-3. show the data by grafana, let me check it by internet
-4. show the data by local screen, let me check it in my room
+```bash
+sudo timedatectl set-timezone Asia/Taipei   # 所有時間戳記都用本地時間，務必設定
+sudo apt install -y python3-venv git mariadb-client   # MySQL 可在同機或其他主機
+```
 
-### Long-term Goals:
-- [] Add a local e-ink screen
-- [] Add co2 sensor
-- [] Add power consumption data of extension cord
+### 2. 取得程式與安裝套件
 
-### Short-term Goals:
-- [] Read extension cord data by seven segment LED
-- [] Find a way to control e-ink screen
-  - [] try c
-  - [x] try microPython
+```bash
+cd /home/pi/Github
+git clone git@github.com:trentyy/AQDC.git && cd AQDC
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
 
-### To-Do List
-1. Reduce failed reading
-2. Move functions into a package
-3. Merge `readElectricity.py` into `readSensor.py` using `asycio` library
+`readElectricity.py` 使用系統 Python（需要 `picamera`、`RPi.GPIO`、opencv、pytesseract 等），
+另外在系統安裝：`sudo apt install python3-picamera python3-opencv python3-numpy python3-pil python3-matplotlib tesseract-ocr python3-pymysql python3-loguru`
+（`picamera` 只支援 Raspberry Pi OS Buster 及更早版本；較新的系統建議改用智慧插座取代這個程式）。
 
-## Used API
-* air quality (pm2.5) https://data.epa.gov.tw/
-* weather https://opendata.cwb.gov.tw/
-## issue
-shutter speed too slow, sometimes there will be a afterimage -> trying to speed up and change some pre-process parameter to keep image reading quality
+### 3. 設定檔
 
+```bash
+mkdir -p setting log pic
+cp setting_example/AQDC-home-default.json  setting/AQDC-home.json
+cp setting_example/AQDC-actor-default.json setting/AQDC-actor.json
+```
 
-## Reference data
-### DS18B20: detect **temperature**
-### DHT22: detect **Humidity** and temperature
-### SHARP GP2Y1014AU: detect **PM2.5** 
-[datasheet]([ref]http://download.kamami.pl/p563980-PMS3003%20series%20data%20manual_English_V2.5.pdf)
-### Gravity CCS811: detect **CO2** and **TVOC**
-[Gravity: CCS811 Air Quality Sensor SKU: SEN0318]([ref]https://wiki.dfrobot.com/Gravity:%20CCS811%20Air%20Quality%20Sensor%20SKU:%20SEN0318)
+編輯這兩個檔案（已被 `.gitignore` 排除，不會進版控；建議 `chmod 600 setting/*`）。
+設定目錄預設 `./setting`，可用環境變數 `AQDC_SETTING_DIR` 改位置。
+
+**`AQDC-home.json`**：`host/user/pw/db` 是 MySQL；`cwa` 是[氣象署開放資料](https://opendata.cwa.gov.tw/)（`Authorization` 為你的授權碼、`StationId` 為測站）；
+`airtw_epa` 是[環境部開放資料](https://data.moenv.gov.tw/)；`healthcheck.notify_url` 選填，填 webhook 網址就會在資料過期時通知。
+`healthcheck.max_age_minutes` 可選填，例如 `{"home_dht22": 5}` 覆蓋各表的容許延遲（分鐘）。
+
+**`AQDC-actor.json`**：`EMAIL`、`PASSWORD`、`DEVICENAME` 為日立 App 帳號與設備名稱。以下為**選填**，沒寫就用預設值：
+
+| 鍵 | 預設 | 說明 |
+|---|---|---|
+| `CO2_HOME_PPM` | 600 | 近期平均 CO2 高於此值 → 在家 |
+| `CO2_AWAY_PPM` | 500 | 平均低於此值且持續 `AWAY_MINUTES` → 外出（介於兩者之間維持原狀態） |
+| `AWAY_MINUTES` | 30 | 外出判定的持續時間 |
+| `CO2_WINDOW_MINUTES` | 10 | CO2 取平均的時間範圍 |
+| `SENSOR_STALE_MINUTES` | 15 | 感測器資料超過幾分鐘沒更新就視為失效 |
+| `MIN_SWITCH_SECONDS` | 600 | 濕度自動開 / 關機的最短間隔（保護壓縮機） |
+| `COMMAND_COOLDOWN_SECONDS` | 180 | 同一道指令的重送間隔 |
+
+### 4. 資料庫
+
+程式用到的資料表（欄位名稱需一致；`fridge_AM2108` 由 `api/` 自動建立）：
+
+| 資料表 | 欄位 |
+|---|---|
+| `home_ds18b20` | `time`, `temperature` |
+| `home_dht22` | `time`, `temperature`, `humidity` |
+| `home_pms7003` | `time`, `pm1`, `pm2_5`, `pm10` |
+| `home_mhz19b` | `time`, `temperature`, `co2` |
+| `home_electricity` | `time`, `Voltage`, `Ampere` |
+| `cwa_Home` | `StationName`, `DateTime`, `AirTemperature`, `RelativeHumidity`, `AirPressure` |
+| `epa_Home` | `PM2_5`, `PM10`, `time` |
+| `actor_RD-200HH1` | `state`, `in_home`, `start_time`, `end_time`, `humid_setting`, `humid_lower_limit`, `humid_upper_limit`, `set_fan_speed`, `description` |
+| `actor_RD-200HH1_botton` | `power`, `auto_turn_off`（單列） |
+
+`actor_RD-200HH1` 每列是一個狀態：在 `[start_time, end_time)` 且 `in_home` 相符時套用該列的風速與濕度設定；
+`start_time > end_time` 代表跨午夜；都不符合時用 `state` 編號最小的一列。
+`cwa_Home`、`epa_Home` 的時間欄位建議設為主鍵 / 唯一鍵，程式用 `INSERT IGNORE` 避免重複。
+
+### 5. Arduino
+
+用 Arduino IDE 安裝函式庫 ArduinoJson（v6）、DallasTemperature、OneWire、DHT、PMS、MHZ19、LiquidCrystal_I2C，
+燒錄 `Arduino/readData_JSON/readData_JSON.ino`，以 USB 接到 Pi（預期為 `/dev/ttyACM0`，不同請改 `readSensor.py` 的 `COM_PORT`）。
+感測器讀不到時韌體會送 `null`，不會送舊值或錯誤值。
+
+### 6. 啟動服務
+
+```bash
+sudo cp service/AQDC_*.service service/AQDC_*.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now AQDC_local AQDC_cwa AQDC_actor AQDC_health.timer
+sudo systemctl enable --now AQDC_electricity   # 有接 Pi Camera 才啟動
+```
+
+service 內的路徑預設為 `/home/pi/Github/AQDC` 與使用者 `pi`，不同請自行修改。
+
+### 7. 冰箱 API（選用）
+
+```bash
+cd api && printf 'DBHOST=...\nUSER=...\nPW=...\nDB=...\n' > .env   # 變數名稱見 api/app/main.py
+cd .. && docker compose up -d --build
+```
+
+## 驗證
+
+```bash
+python3 -m unittest discover -s test -p "test_logic.py"    # 純邏輯單元測試
+journalctl -u AQDC_local -f        # 應每分鐘看到 "saved: [...]"
+tail -f log/actor.log              # 應看到狀態切換與下指令的原因
+.venv/bin/python healthcheck.py && echo OK   # 各表資料都新鮮則回傳 0
+```
+
+## 日誌與維運
+
+- 每個程式寫 `./log/<name>.log`（每月輪替、保留一年），也可用 `journalctl -u <service>` 查看。
+- 感測器被拒絕的數值會出現在 `readSensor.log` 的 `rejected:`，經常出現代表接線或感測器有問題。
+- `actor.py` 不會每分鐘覆蓋手動操作：只有狀態改變、或資料庫內該狀態的設定被改過時才會下風速 / 濕度指令。
+  但電源按鈕設為關閉（`power=0`）時會強制關機。
+
+## 已知限制
+
+見 [CHANGELOG.md](CHANGELOG.md) 的「未處理」：Arduino 的 PMS 被動模式與 MH-Z19B 自動校正、電錶 OCR 的脆弱性、`api/` 尚未審查。
+
+## 參考資料來源
+
+- 空品 https://data.moenv.gov.tw/ 、氣象 https://opendata.cwa.gov.tw/
+- [LibJciHitachi](https://github.com/qqaatw/LibJciHitachi)

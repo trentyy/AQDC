@@ -8,6 +8,7 @@ WorkingDirectory=/home/pi/Github/AQDC
 StandardOutput=inherit
 StandardError=inherit
 Restart=always
+RestartSec=10
 User=pi
 
 [Install]

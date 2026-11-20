@@ -8,6 +8,7 @@ AQDC-home.json
 AQDC-actor.json
 *.key
 *.log
+log/
 dev-env
 pic/*
 setting/*

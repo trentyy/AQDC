@@ -15,6 +15,7 @@ LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x27, 20, 4); // Change to (0x27,16,2)
 #define SOFT_TX 5
 #define DHT_TYPE 22
 #define DELAY_MINUTE 1
+#define DHT_RETRY 5   // DHT22 讀到 NaN 時最多重試次數
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
 #define MHZ19_RX 6                                          // Rx pin which the MHZ19 Tx pin is attached to
@@ -112,28 +113,27 @@ void loop() {
   // read ds18b20
   DS18B20.requestTemperatures();
   DS18B20_t = DS18B20.getTempCByIndex(0);
-  
-  // read dht22
+  // 斷線時函式庫回 -127，視為讀取失敗，之後以 null 送出
+  bool ds18b20Ok = (DS18B20_t != DEVICE_DISCONNECTED_C);
+
+  // read dht22（最多重試 DHT_RETRY 次，不再無限迴圈；NaN 必須用 isnan() 判斷）
   dht_t = dht.readTemperature();
-  while(dht_t==NAN)
-  {
+  for (int i = 0; i < DHT_RETRY && isnan(dht_t); i++) {
+    delay(1000);
     dht_t = dht.readTemperature();
-    //Serial.println("reading DHT22: Temperature");
-    delay(1000);
   }
-  
+
   dht_h = dht.readHumidity();
-  while(dht_h==NAN)
-  {
-    dht_h = dht.readHumidity();
-    //Serial.println("reading DHT22: Humidity");
+  for (int i = 0; i < DHT_RETRY && isnan(dht_h); i++) {
     delay(1000);
+    dht_h = dht.readHumidity();
   }
-  
-  // read pms data
+
+  // read pms data（讀取失敗時不再沿用上一次的舊值，改送 null）
   PMSerial.listen();
   pms.requestRead();
-  if (pms.readUntil(data))
+  bool pmsOk = pms.readUntil(data);
+  if (pmsOk)
   {
     PM01Value=data.PM_AE_UG_1_0;          //define PM1.0 value of the air detector module
     PM2_5Value=data.PM_AE_UG_2_5;         //define PM2.5 value of the air detector module
@@ -144,6 +144,7 @@ void loop() {
   MHZ19_Serial.listen();
   CO2 = myMHZ19.getCO2();                             // Request CO2 (as ppm)
   MHZ19_Temp = myMHZ19.getTemperature();              // Request Temperature (as Celsius)
+  bool mhzOk = (CO2 > 0);                             // 讀取失敗時函式庫回 0
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -170,14 +171,29 @@ void loop() {
 
   //doc["CCS811"]["CO2"] = ccs811_co2;
   //doc["CCS811"]["TVOC"] = ccs811_tvoc;
-  doc["DS18B20"]["Temperature"] = DS18B20_t;
-  doc["DHT22"]["Temperature"] = dht_t;
-  doc["DHT22"]["Humidity"] = dht_h;
-  doc["PMS7003"]["PM1"] = PM01Value;
-  doc["PMS7003"]["PM2_5"] = PM2_5Value;
-  doc["PMS7003"]["PM10"] = PM10Value;
-  doc["MHZ19B"]["CO2"] = CO2;
-  doc["MHZ19B"]["Temperature"] = MHZ19_Temp;
+  // 讀取失敗的欄位送 null，Python 端 (sensor_parse.py) 會略過該感測器
+  if (ds18b20Ok) doc["DS18B20"]["Temperature"] = DS18B20_t;
+  else           doc["DS18B20"]["Temperature"] = nullptr;
+  if (!isnan(dht_t)) doc["DHT22"]["Temperature"] = dht_t;
+  else               doc["DHT22"]["Temperature"] = nullptr;
+  if (!isnan(dht_h)) doc["DHT22"]["Humidity"] = dht_h;
+  else               doc["DHT22"]["Humidity"] = nullptr;
+  if (pmsOk) {
+    doc["PMS7003"]["PM1"] = PM01Value;
+    doc["PMS7003"]["PM2_5"] = PM2_5Value;
+    doc["PMS7003"]["PM10"] = PM10Value;
+  } else {
+    doc["PMS7003"]["PM1"] = nullptr;
+    doc["PMS7003"]["PM2_5"] = nullptr;
+    doc["PMS7003"]["PM10"] = nullptr;
+  }
+  if (mhzOk) {
+    doc["MHZ19B"]["CO2"] = CO2;
+    doc["MHZ19B"]["Temperature"] = MHZ19_Temp;
+  } else {
+    doc["MHZ19B"]["CO2"] = nullptr;
+    doc["MHZ19B"]["Temperature"] = nullptr;
+  }
   
   serializeJson(doc, Serial);
   Serial.println();

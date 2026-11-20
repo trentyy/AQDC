@@ -1,230 +1,125 @@
 #!/usr/bin/python3
+"""定期從氣象署 (CWA) 與環境部 (EPA) 開放資料取得戶外資料並寫入資料庫。"""
 
-import traceback, time, json, asyncio
+import time
 from datetime import datetime
-from urllib.error import HTTPError
+
 import requests
-import pymysql.cursors
 from loguru import logger
 
-from urllib3.exceptions import NewConnectionError
+from common import db_connect, load_home_setting, redact
 
-# log file name
-trace = logger.add("./log/readWeb.log", rotation="monthly", encoding="utf-8", enqueue=True, retention="1 year")
-counter = 0
-udtCWA = 10 # update time for cwa: 10 min 
-wdCWA = True # flag for forcing to write data into database
+logger.add("./log/readWeb.log", rotation="monthly", encoding="utf-8",
+           enqueue=True, retention="1 year")
 
-with open("./setting/AQDC-home.json", 'r') as f:
-    jdata = json.load(f)
+UPDATE_INTERVAL = 600   # 成功後 10 分鐘再抓
+RETRY_INTERVAL = 60     # 失敗後 1 分鐘重試
+HTTP_TIMEOUT = 15       # 秒
 
-HOST = jdata['host']
-USER = jdata['user']
-PW = jdata['pw']
-DB = jdata['db']
+setting = load_home_setting()
+SOURCES = {
+    "cwa": (setting['cwa']['url'], setting['cwa']['params']),
+    "epa": (setting['airtw_epa']['url'], setting['airtw_epa']['params']),
+}
+# 需要從 log / 例外訊息中遮掉的密鑰
+SECRETS = [v for _, params in SOURCES.values() for v in params.values()]
+SECRETS += [setting.get('pw')]
 
-url_cwa = jdata['cwa']['url']
-params_cwa = jdata['cwa']['params']
-url_epa = jdata['airtw_epa']['url']
-params_epa = jdata['airtw_epa']['params']
+# 寫入資料表的欄位白名單（欄位名稱不再直接取自外部資料）
+CWA_COLUMNS = ['StationName', 'DateTime', 'AirTemperature', 'RelativeHumidity', 'AirPressure']
+EPA_COLUMNS = ['PM2_5', 'PM10', 'time']
+# CWA 要保存的氣象要素
+CWA_ELEMENTS = ['AirTemperature', 'RelativeHumidity', 'AirPressure']
 
-# here is the name of data which you want to store 
-needed_id = [
-    'StationName', 
-    'AirTemperature', 'RelativeHumidity', 'AirPressure',
+
+def http_get_json(url, params):
+    resp = requests.get(url, params=params, timeout=HTTP_TIMEOUT)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def parse_cwa(jdata):
+    stations = jdata['records']['Station']
+    if not stations:
+        return None
+    station = stations[0]
+    result = {
+        'StationName': station['StationName'],
+        'DateTime': datetime.fromisoformat(station['ObsTime']['DateTime']),
+    }
+    for key, value in station['WeatherElement'].items():
+        # -99 代表儀器無資料，溫度或濕度缺值時整筆捨棄
+        if key in ('AirTemperature', 'RelativeHumidity') and float(value) == -99:
+            logger.info(f"{key} = -99, ignore")
+            return None
+        if key in CWA_ELEMENTS:
+            result[key] = value
+    return result
+
+
+def parse_epa(jdata):
+    records = jdata['records']
+    if not records:
+        return None
+    result = {}
+    for item in records:
+        if item['itemengname'] == 'PM2.5':
+            result['PM2_5'] = item['concentration']
+        elif item['itemengname'] == 'PM10':
+            result['PM10'] = item['concentration']
+    result['time'] = datetime.fromisoformat(item['monitordate'])
+    return result
+
+
+def insert(table, columns, data):
+    """以參數化查詢寫入；INSERT IGNORE 讓重複的時間戳不會報錯。"""
+    cols = [c for c in columns if c in data]
+    sql = (f"INSERT IGNORE INTO `{table}`({','.join('`%s`' % c for c in cols)}) "
+           f"VALUES ({','.join(['%s'] * len(cols))})")
+    con = db_connect(setting)
+    try:
+        with con.cursor() as cur:
+            cur.execute(sql, [data[c] for c in cols])
+        con.commit()
+    finally:
+        con.close()
+    logger.success(f"{table}: {dict(zip(cols, [data[c] for c in cols]))}")
+
+
+JOBS = [
+    ("cwa", parse_cwa, "cwa_Home", CWA_COLUMNS),
+    ("epa", parse_epa, "epa_Home", EPA_COLUMNS),
 ]
 
-# for print color
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
 
-
-# curl -X GET "https://data.moenv.gov.tw/api/v2/aqx_p_212?api_key=[YOURKEY]" -H "accept: */*"
-# curl -X GET "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=[YOURKEY]&stationId=467490" -H  "accept: application/json"
-
-async def getDataEPA(url, params, DEBUG = False):
-    def getData(url, params):
-        data = requests.get(url, params)
-        if data.status_code != 200:
-            logger.info(f"data.status_code: {data.status_code}")
+def run_once():
+    """兩個來源各自獨立處理，一邊失敗不影響另一邊。回傳是否全部成功。"""
+    all_ok = True
+    for name, parse, table, columns in JOBS:
+        url, params = SOURCES[name]
         try:
-            data.raise_for_status() 
-        except HTTPError:
-            return None
-            
-
-        data = data.text
-        data = json.loads(data)
-        return data
-    
-    def parseData(jdata):
-        myDict = {}
-        tmpList = jdata['records']
-        
-        for item in tmpList:
-            if item['itemengname'] == 'PM2.5':
-                myDict['PM2_5'] = item['concentration']
-            elif item['itemengname'] == 'PM10':
-                myDict['PM10'] = item['concentration']
-        t = item['monitordate']      # from Taipei to UTC
-        t = datetime.fromisoformat(t)
-        t = t# - dt.timedelta(hours=8)
-        myDict['time'] = t
-        return myDict
-        
-    data = getData(url, params)
-    if data == None:
-        return None
-    myDict = parseData(data)
-    return myDict
-
-async def getDataCWA(url, params, DEBUG = False):
-    def getData(url, params):
-        # get data from cwa
-        data = requests.get(url, params)
-
-        # dealing with request error
-        if data.status_code != 200:
-            logger.info(f"data.status_code: {data.status_code}")
-        try:
-            data.raise_for_status() 
-        except HTTPError:
-            return None
-        data = data.text
-        # use json.loads() to parse data from string-version, will become type: dict
-        data = json.loads(data)
-        print(json.dumps(data))
-        if (len(data['records']['Station'])==0):
-            return None
-
-        return data
-
-    def parseData(jdata):
-        myDict = {}
-        tmpList = jdata['records']['Station'][0]
-        myDict['StationName'] = tmpList['StationName']
-        
-        t = tmpList['ObsTime']['DateTime']      # from Taipei to UTC
-        t = datetime.fromisoformat(t)
-
-        myDict['DateTime'] = t
-        WeatherElement = tmpList['WeatherElement']
-
-        for key, value in WeatherElement.items():
-            if (key == 'AirTemperature' and float(value) == -99):
-                logger.info("AirTemperature = -99, ignore")
-                return None
-            elif (key == 'RelativeHumidity' and float(value) == -99):
-                logger.info("RelativeHumidity = -99, ignore")
-                return None
-            if (key in needed_id):
-                myDict[key] = value
-        return myDict
-
-    data = getData(url, params)
-    if data == None:
-        return None
-    myDict = parseData(data)
-    return myDict
-
-async def main():
-    loop = asyncio.get_event_loop()
-    counter = 0
-    wdCWA = True
-    CWA_data_fetched = False
-    EPA_data_fetched = False
-    while True:
-        counter += 1
-        if (counter >= udtCWA or wdCWA):
-            print(f"{bcolors.OKBLUE}{datetime.now()}{bcolors.ENDC}")
-            sql = ""
-            
-            try:
-                cwa_dict = await getDataCWA(url_cwa, params_cwa)
-                if (cwa_dict == None):
-                    CWA_data_fetched = False
-                else:
-                    CWA_data_fetched = True
-            except UnicodeDecodeError:
-                logger.error(f"[UnicodeDecodeError] cwa_dict: {cwa_dict}")
-            except json.decoder.JSONDecodeError:
-                logger.error(f"[JSONDecodeError] cwa_dict: {cwa_dict}")
-            except pymysql.err.OperationalError:
-                logger.exception("pymysql.err.OperationalError, sleep 1 min and continue")
-                await asyncio.sleep(60)
-            except (requests.exceptions.HTTPError, NewConnectionError) as e:
-                logger.exception(e)
-                await asyncio.sleep(60)
-            except Exception as e:
-                logger.exception(e)
-                await asyncio.sleep(60)
-
-            try:
-                epa_dict = await getDataEPA(url_epa, params_epa)
-                if (epa_dict == None):
-                    EPA_data_fetched = False
-                else:
-                    EPA_data_fetched = True
-            except UnicodeDecodeError:
-                logger.error(f"[UnicodeDecodeError] epa_dict: {epa_dict}")
-            except json.decoder.JSONDecodeError:
-                logger.error(f"[JSONDecodeError] epa_dict: {epa_dict}")
-            except pymysql.err.OperationalError:
-                logger.exception("pymysql.err.OperationalError, sleep 1 min and continue")
-                await asyncio.sleep(60)
-            except (requests.exceptions.HTTPError, NewConnectionError) as e:
-                traceback.print_exc()
-                await asyncio.sleep(60)
-            except Exception as e:
-                logger.exception(e)
-                await asyncio.sleep(60)
-                
-            try:
-                db = pymysql.connect(host=HOST, user=USER, password=PW, db=DB,
-                                    cursorclass=pymysql.cursors.DictCursor)
-                tmp = "\',\'"
-                if CWA_data_fetched:
-                    sql = (
-                        "INSERT IGNORE INTO cwa_Home("
-                        f"{','.join([key for key in cwa_dict.keys()])}"
-                        ")VALUES(\'"
-                        f"{tmp.join([str(value) for value in cwa_dict.values()])}"
-                        "');"
-                    )
-                    db.cursor().execute(sql)
-                    db.commit()
-                    logger.success(sql)
-
-                if EPA_data_fetched:
-                    sql = (
-                        "INSERT IGNORE INTO epa_Home("
-                        f"{','.join([key for key in epa_dict.keys()])}"
-                        ")VALUES(\'"
-                        f"{tmp.join([str(value) for value in epa_dict.values()])}"
-                        "');"
-                    )
-                    db.cursor().execute(sql)
-                    db.commit()
-                    logger.success(sql)
-                db.close()
-
-                counter = 0
-                wdCWA = False
-                CWA_data_fetched = False
-                EPA_data_fetched = False
-            except Exception as e:
-                logger.exception(e)
-                time.sleep(90)
+            data = parse(http_get_json(url, params))
+            if data is None:
+                logger.warning(f"{name}: no usable data")
+                all_ok = False
                 continue
-        await asyncio.sleep(60)
+            insert(table, columns, data)
+        except Exception as e:
+            # 不用 logger.exception：requests 的錯誤訊息會含帶 API key 的完整 URL
+            logger.error(f"{name}: {type(e).__name__}: {redact(e, SECRETS)}")
+            all_ok = False
+    return all_ok
+
+
+def main():
+    next_run = 0.0
+    while True:
+        now = time.monotonic()
+        if now >= next_run:
+            ok = run_once()
+            next_run = time.monotonic() + (UPDATE_INTERVAL if ok else RETRY_INTERVAL)
+        time.sleep(5)
+
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
