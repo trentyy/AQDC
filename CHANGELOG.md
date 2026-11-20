@@ -99,3 +99,5 @@
 - 開關條件改為：濕度 **> `humid_upper_limit`** 開機；濕度 **<= `humid_lower_limit`** 關機（原本是 `>=` 與 `<`）。邏輯拆成 `actor_logic.decide_switch`，附單元測試。
 - `power=0`（電源按鈕強制關機）仍每分鐘檢查，不受判定間隔限制。
 - rpi4-4g 的設定：`AQDC-actor.json` 加入 `AWAY_ONLY: true`、`CONTROL_INTERVAL_MINUTES: 30`；資料庫 `actor_RD-200HH1_botton` 設為 `power=1, auto_turn_off=1`；`actor_RD-200HH1` 中 `in_home=0` 的狀態改為 `humid_setting=50, humid_lower_limit=50, humid_upper_limit=60`（修改前的值記錄在下方部署紀錄）。
+  修改前（可用來還原）：`actor_RD-200HH1_botton`：`power=0, auto_turn_off=0`；`actor_RD-200HH1`（state, in_home, humid_setting, lower, upper, fan）：`(0,0,55,60,65,2)`、`(2,0,40,45,55,4)`，其餘 `in_home=1` 的列未改動。`AQDC-actor.json` 備份：`AQDC-actor.json.bak-20261120`。
+- 已刪除 rpi4-4g 上 10 個已輪替的 `log/readWeb.20*.log`（約 2.5GB，內容幾乎都是資料庫連不上的錯誤）；使用中的 `readWeb.log` 保留。
