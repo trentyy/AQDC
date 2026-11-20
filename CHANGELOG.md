@@ -72,3 +72,12 @@
   CWA 的 URL、參數（`Authorization`、`StationId`）與回傳結構（`records.Station[].WeatherElement`）經實機驗證**沒有變動**，沒有查到官方的異動公告，也沒能讀取官方產品說明文件的缺測代碼章節。
 - `setting_example` 的 EPA 範例改為 `aqx_p_212` 並加上 `filters=siteid,EQ,24`（固定新竹測站），避免依賴回傳順序。
 - `test/test_logic.py` 加入 CWA / EPA 解析測試。
+- `actor.py`：登入失敗的重試間隔改為指數退避（60 秒起、最長 15 分鐘）。
+
+### 2026-11-20 rpi4-4g 部署紀錄
+- 備份：Pi 上原本未提交的修改已存成分支 `pi-local-changes-20261120`（含小寫表名、`checkAlwaysOff` 的除錯 `print`），再以 `master` 覆蓋。
+- `setting/AQDC-home.json`：`host` 由 `192.168.31.15`（無線網卡 IP，Pi 改用有線後連不到）改為 `127.0.0.1`，並加入 `table_names`（小寫）。舊檔備份為 `AQDC-home.json.bak-20261120`。
+- 已啟用：`AQDC_cwa`（恢復寫入）、`AQDC_local`（恢復寫入）、`AQDC_health.timer`；`AQDC_actor` 因日立雲端登入失敗無法工作（見下）。
+- `AQDC_electricity` 未架設硬體，未安裝；`home_electricity` 資料表不存在，所以不需要時區遷移。
+- `actor` 失敗原因：`LibJciHitachi` 登入時 `RuntimeError: An event occurred but wasn't accompanied with data when refreshing RD-200HH1 support code`。
+  升級到最新版 1.7.2 結果相同，不是版本問題；通常代表日立雲端沒有回傳設備的 support code（設備離線 / 未連上雲端，或官方 App 正在使用）。

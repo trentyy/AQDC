@@ -64,14 +64,18 @@ class StateMachine(object):
 
     # ---------- 雲端 API ----------
     def login(self):
+        """登入日立雲端；失敗時等待 60 秒、120 秒……最長 15 分鐘後重試，避免長時間頻繁打雲端 API。
+        （設備離線或官方 App 開著時，函式庫會丟 RuntimeError "...refreshing ... support code"）"""
+        delay = 60
         while True:
             try:
                 self.api.login()
                 logger.info("login ok")
                 return
             except Exception as e:
-                logger.error(f"login failed: {e!r}, retry in 60s")
-                time.sleep(60)
+                logger.error(f"login failed: {e!r}, retry in {delay}s")
+                time.sleep(delay)
+                delay = min(delay * 2, 900)
 
     def _send(self, name, value) -> bool:
         """送出一道設定指令；失敗不丟例外，回傳是否成功。
