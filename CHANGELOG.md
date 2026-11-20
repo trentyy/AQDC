@@ -116,5 +116,5 @@
   - 日立雲端登入失敗（`support code` 沒回應）：回家後在設備上重新設定連網功能，並確認官方 App 沒有同時開啟；恢復後 `actor` 會依新規則（不在家、濕度 >60 開、≤50 關、每 30 分鐘判定）自動運作，請觀察 `log/actor.log`。
   - `aqdc-api` 仍以 `debug=True` 對 `0.0.0.0` 開放；MariaDB 的 `AQDC@'%'` 未限縮來源。
   - Grafana 警報 email 的 SMTP 密碼失效（Gmail 535）。
-  - Wi-Fi：`Trent_WAP_5G` 已連線；建議把兩個網路設定檔的 `connection.autoconnect-retries` 設為 0（無限重試），尚未套用。
-  - Pi 上的備份檔可視情況刪除：`setting/*.bak-20261120`、`/home/pi/preconfigured.nmconnection.bak`、`/home/pi/grafana.db.bak-20261120-datasource`、`api/.env.bak-20261120`。
+  - Wi-Fi：`Trent_WAP_5G` 已連線；兩個網路設定檔（`Trent_WAP_5G`、`Wired connection 1`）的 `connection.autoconnect-retries` 已設為 0（無限重試），斷電重啟後會持續嘗試連線。
+  - Pi 上的備份檔（`setting/*.bak-20261120`、`api/.env.bak-20261120`、`preconfigured.nmconnection.bak`、Grafana 資料庫備份）已刪除；仍保留 `/home/pi/cwa_deleted_20261120.json`（被刪的氣象署資料）與 `/home/pi/crontab.bak-20261120`。
