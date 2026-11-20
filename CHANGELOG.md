@@ -101,3 +101,9 @@
 - rpi4-4g 的設定：`AQDC-actor.json` 加入 `AWAY_ONLY: true`、`CONTROL_INTERVAL_MINUTES: 30`；資料庫 `actor_RD-200HH1_botton` 設為 `power=1, auto_turn_off=1`；`actor_RD-200HH1` 中 `in_home=0` 的狀態改為 `humid_setting=50, humid_lower_limit=50, humid_upper_limit=60`（修改前的值記錄在下方部署紀錄）。
   修改前（可用來還原）：`actor_RD-200HH1_botton`：`power=0, auto_turn_off=0`；`actor_RD-200HH1`（state, in_home, humid_setting, lower, upper, fan）：`(0,0,55,60,65,2)`、`(2,0,40,45,55,4)`，其餘 `in_home=1` 的列未改動。`AQDC-actor.json` 備份：`AQDC-actor.json.bak-20261120`。
 - 已刪除 rpi4-4g 上 10 個已輪替的 `log/readWeb.20*.log`（約 2.5GB，內容幾乎都是資料庫連不上的錯誤）；使用中的 `readWeb.log` 保留。
+
+### 2026-11-20 Grafana 與 API
+- 新增儀表板「AQDC 工作地點」（`grafana/dashboards/aqdc-work.json`，uid `aqdc-work`）：工作地點測站、目前溫度 / 濕度 / 氣壓，以及工作地點與家（國三S103K）的溫度、濕度、氣壓對照曲線，和最近 10 筆觀測。以 provisioning 方式載入（`grafana/provisioning/aqdc.yaml`，複製到 `/etc/grafana/provisioning/dashboards/`）。
+- rpi4-4g：Grafana 的 MySQL 資料來源位址由 `192.168.31.15:3306` 改為 `127.0.0.1:3306`（有線 / 無線切換不再影響儀表板）。
+- `api/app/main.py`：移除啟動時 `print` 含密碼的資料庫連線字串。
+- 日立雲端登入問題（設備需重新設定連網功能）：待使用者回家處理，`actor` 先維持重試。

@@ -13,7 +13,6 @@ PW = os.getenv("PW")
 DB = os.getenv("DB")
 
 app = Flask(__name__)
-print(f'mysql+pymysql://{USER}:{PW}@{HOST}/{DB}')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{USER}:{PW}@{HOST}/{DB}'
 
 db = SQLAlchemy(app)

@@ -1,0 +1,118 @@
+{
+  "uid": "aqdc-work",
+  "title": "AQDC 工作地點",
+  "tags": ["aqdc", "weather"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": { "from": "now-3d", "to": "now" },
+  "editable": true,
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "工作地點測站",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+      "targets": [ {
+        "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+        "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+        "rawSql": "SELECT StationName AS station FROM cwa_work ORDER BY DateTime DESC LIMIT 1"
+      } ],
+      "options": { "textMode": "value", "colorMode": "none", "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": { "defaults": {}, "overrides": [] }
+    },
+    {
+      "id": 2, "type": "stat", "title": "目前溫度",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+      "targets": [ {
+        "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+        "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+        "rawSql": "SELECT AirTemperature AS temperature FROM cwa_work ORDER BY DateTime DESC LIMIT 1"
+      } ],
+      "options": { "textMode": "value", "colorMode": "value", "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "celsius", "decimals": 1 }, "overrides": [] }
+    },
+    {
+      "id": 3, "type": "stat", "title": "目前濕度",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+      "targets": [ {
+        "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+        "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+        "rawSql": "SELECT RelativeHumidity AS humidity FROM cwa_work ORDER BY DateTime DESC LIMIT 1"
+      } ],
+      "options": { "textMode": "value", "colorMode": "value", "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 0 }, "overrides": [] }
+    },
+    {
+      "id": 4, "type": "stat", "title": "目前氣壓",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+      "targets": [ {
+        "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+        "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+        "rawSql": "SELECT AirPressure AS pressure FROM cwa_work ORDER BY DateTime DESC LIMIT 1"
+      } ],
+      "options": { "textMode": "value", "colorMode": "value", "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "pressurehpa", "decimals": 1 }, "overrides": [] }
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "溫度：工作地點 vs 家",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 9 },
+      "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+      "targets": [
+        { "refId": "A", "format": "time_series", "rawQuery": true, "editorMode": "code",
+          "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+          "rawSql": "SELECT $__timeGroupAlias(DateTime,$__interval), avg(AirTemperature) AS \"工作地點\" FROM cwa_work WHERE $__timeFilter(DateTime) GROUP BY 1 ORDER BY $__timeGroup(DateTime,$__interval)" },
+        { "refId": "B", "format": "time_series", "rawQuery": true, "editorMode": "code",
+          "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+          "rawSql": "SELECT $__timeGroupAlias(DateTime,$__interval), avg(AirTemperature) AS \"家\" FROM cwa_home WHERE $__timeFilter(DateTime) AND StationName = '國三S103K' GROUP BY 1 ORDER BY $__timeGroup(DateTime,$__interval)" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "celsius", "decimals": 1, "custom": { "spanNulls": true } }, "overrides": [] }
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "濕度：工作地點 vs 家",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 9 },
+      "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+      "targets": [
+        { "refId": "A", "format": "time_series", "rawQuery": true, "editorMode": "code",
+          "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+          "rawSql": "SELECT $__timeGroupAlias(DateTime,$__interval), avg(RelativeHumidity) AS \"工作地點\" FROM cwa_work WHERE $__timeFilter(DateTime) GROUP BY 1 ORDER BY $__timeGroup(DateTime,$__interval)" },
+        { "refId": "B", "format": "time_series", "rawQuery": true, "editorMode": "code",
+          "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+          "rawSql": "SELECT $__timeGroupAlias(DateTime,$__interval), avg(RelativeHumidity) AS \"家\" FROM cwa_home WHERE $__timeFilter(DateTime) AND StationName = '國三S103K' GROUP BY 1 ORDER BY $__timeGroup(DateTime,$__interval)" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 0, "custom": { "spanNulls": true } }, "overrides": [] }
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "氣壓：工作地點 vs 家",
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+      "targets": [
+        { "refId": "A", "format": "time_series", "rawQuery": true, "editorMode": "code",
+          "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+          "rawSql": "SELECT $__timeGroupAlias(DateTime,$__interval), avg(AirPressure) AS \"工作地點\" FROM cwa_work WHERE $__timeFilter(DateTime) GROUP BY 1 ORDER BY $__timeGroup(DateTime,$__interval)" },
+        { "refId": "B", "format": "time_series", "rawQuery": true, "editorMode": "code",
+          "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+          "rawSql": "SELECT $__timeGroupAlias(DateTime,$__interval), avg(AirPressure) AS \"家\" FROM cwa_home WHERE $__timeFilter(DateTime) AND StationName = '國三S103K' GROUP BY 1 ORDER BY $__timeGroup(DateTime,$__interval)" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "pressurehpa", "decimals": 1, "custom": { "spanNulls": true } }, "overrides": [] }
+    },
+    {
+      "id": 8, "type": "table", "title": "最近 10 筆觀測（工作地點）",
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+      "targets": [ {
+        "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+        "datasource": { "type": "mysql", "uid": "ce6f0117-7784-48fe-9533-b8fd61f4d132" },
+        "rawSql": "SELECT DateTime AS '觀測時間', StationName AS '測站', AirTemperature AS '溫度', RelativeHumidity AS '濕度', AirPressure AS '氣壓' FROM cwa_work ORDER BY DateTime DESC LIMIT 10"
+      } ],
+      "fieldConfig": { "defaults": {}, "overrides": [] }
+    }
+  ]
+}

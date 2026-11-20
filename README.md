@@ -171,3 +171,15 @@ tail -f log/actor.log              # 應看到狀態切換與下指令的原因
 
 新增測站的資料表前先建表：`CREATE TABLE cwa_work LIKE cwa_home;`（Linux 上請對應實際大小寫，並加進 `table_names`）。
 測站代碼可從 `O-A0001-001`（自動氣象站，含氣壓）的回應中依座標找最近的；沒有 `stations` 時使用舊的 `cwa.params.StationId`。
+
+## Grafana 儀表板
+
+`grafana/dashboards/` 放以檔案管理的儀表板（目前有「AQDC 工作地點」，顯示 `cwa_work` 與家的對照）。載入方式：
+
+```bash
+sudo cp grafana/provisioning/aqdc.yaml /etc/grafana/provisioning/dashboards/aqdc.yaml   # 依實際路徑修改 path
+sudo systemctl restart grafana-server
+```
+
+儀表板使用 uid `ce6f0117-7784-48fe-9533-b8fd61f4d132` 的 MySQL 資料來源；若你的資料來源 uid 不同，請在 JSON 中全部取代。
+資料來源的位址請設成 `127.0.0.1:3306`（與 Grafana 在同一台 Pi 時）。因為是檔案管理（`allowUiUpdates: false`），要修改請改 JSON 檔再重新載入。

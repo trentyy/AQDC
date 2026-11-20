@@ -1,0 +1,12 @@
+# 範例：複製到 /etc/grafana/provisioning/dashboards/aqdc.yaml 後重啟 grafana-server
+# path 請依實際的專案位置修改，且 grafana 使用者必須讀得到該目錄。
+apiVersion: 1
+providers:
+  - name: aqdc
+    type: file
+    folder: ""
+    allowUiUpdates: false
+    disableDeletion: true
+    updateIntervalSeconds: 60
+    options:
+      path: /home/pi/Github/AQDC/grafana/dashboards
