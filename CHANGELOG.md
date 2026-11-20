@@ -109,3 +109,12 @@
 - 日立雲端登入問題（設備需重新設定連網功能）：待使用者回家處理，`actor` 先維持重試。
 - 部署踩到的坑：provisioning 路徑指向 `/home/pi/...` 時，Grafana 因 systemd 沙箱無法讀取（`lstat /home/pi: permission denied`），服務會反覆重啟；改成把儀表板 JSON 複製到 `/var/lib/grafana/dashboards/aqdc/`（與 portal 相同做法）。部署程序已更新到 README。
 - Grafana 資料庫修改前備份：`/home/pi/grafana.db.bak-20261120-datasource`。
+
+### 2026-11-20 資料清理與待辦
+- 依要求刪除 `cwa_home`（2 筆，新竹站）與 `cwa_work`（1 筆）1 天內的資料；備份在 rpi4-4g 的 `/home/pi/cwa_deleted_20261120.json`。刪除後 17:00 的時間戳空出，`AQDC_cwa` 下一輪會寫入國三S103K / 新竹市東區的觀測。
+- **待辦**：
+  - 日立雲端登入失敗（`support code` 沒回應）：回家後在設備上重新設定連網功能，並確認官方 App 沒有同時開啟；恢復後 `actor` 會依新規則（不在家、濕度 >60 開、≤50 關、每 30 分鐘判定）自動運作，請觀察 `log/actor.log`。
+  - `aqdc-api` 仍以 `debug=True` 對 `0.0.0.0` 開放；MariaDB 的 `AQDC@'%'` 未限縮來源。
+  - Grafana 警報 email 的 SMTP 密碼失效（Gmail 535）。
+  - Wi-Fi：`Trent_WAP_5G` 已連線；建議把兩個網路設定檔的 `connection.autoconnect-retries` 設為 0（無限重試），尚未套用。
+  - Pi 上的備份檔可視情況刪除：`setting/*.bak-20261120`、`/home/pi/preconfigured.nmconnection.bak`、`/home/pi/grafana.db.bak-20261120-datasource`、`api/.env.bak-20261120`。
