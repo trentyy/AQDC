@@ -1,5 +1,5 @@
 {
-    "host": "HOST",
+    "host": "127.0.0.1",
     "user": "USER",
     "pw" : "PASSWORD",
     "db": "DATABASE",
@@ -9,7 +9,12 @@
         "params":
         {
             "Authorization": "YOUR_KEY"
-        }
+        },
+        "stations":
+        [
+            {"id": "CAD090", "label": "home", "table": "cwa_Home"},
+            {"id": "C0D660", "label": "work", "table": "cwa_Work"}
+        ]
     },
     "airtw_epa":
     {
