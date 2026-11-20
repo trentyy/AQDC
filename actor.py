@@ -8,7 +8,8 @@ from datetime import datetime, timedelta
 from loguru import logger
 from JciHitachi.api import JciHitachiAWSAPI
 
-from actor_logic import PresenceDetector, decide_switch, decision_slot, pick_state
+from actor_logic import (PresenceDetector, auto_control_active, decide_switch,
+                         decision_slot, pick_state)
 from common import db_connect, load_home_setting, load_setting
 
 logger.add("./log/actor.log", rotation="monthly", encoding="utf-8",
@@ -63,6 +64,7 @@ class StateMachine(object):
         self.last_switch_value = None
         self.last_switch_change = None
         self.last_slot = None       # 上一次完成開關判定的時段
+        self.auto_active = None     # 上一輪自動開關是否在作用（只用來記錄變化）
         logger.info("...initiate finished")
 
     # ---------- 雲端 API ----------
@@ -117,11 +119,13 @@ class StateMachine(object):
         con = db_connect(self.home)
         try:
             with con.cursor() as cur:
-                cur.execute("SELECT `power`,`auto_turn_off` FROM `actor_RD-200HH1_botton`")
+                cur.execute("SELECT `power`,`auto_turn_off`,`auto_enabled`,"
+                            "`auto_start_time`,`auto_end_time` FROM `actor_RD-200HH1_botton`")
                 row = cur.fetchone()
                 if row is None:
                     raise ValueError("table actor_RD-200HH1_botton is empty")
-                self.power, self.auto_turn_off = row
+                (self.power, self.auto_turn_off, self.auto_enabled,
+                 self.auto_start_time, self.auto_end_time) = row
 
                 cur.execute("SELECT `time`,`humidity` FROM `home_dht22` ORDER BY `time` DESC LIMIT 1")
                 row = cur.fetchone()
@@ -202,6 +206,14 @@ class StateMachine(object):
         """依在家狀態與濕度決定開關；回傳是否沒有失敗（失敗時不消耗判定時段，下一輪重試）。"""
         if not self.power:
             return True
+        active = auto_control_active(self.auto_enabled, self.auto_start_time,
+                                     self.auto_end_time, datetime.now())
+        if active != self.auto_active:
+            self.auto_active = active
+            logger.info(f"auto control {'active' if active else 'inactive'} "
+                        f"(auto_enabled={self.auto_enabled}, window={self.auto_start_time}~{self.auto_end_time})")
+        if not active:
+            return True     # 排程外或已停用：不自動開關（power=0 的強制關機另行處理）
         cfg = self.state_config
         is_on = self.device_status['Switch'] == 'on'
         in_home = self.presence.in_home

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from actor_logic import PresenceDetector, is_in_time_range, pick_state  # noqa: E402
+from actor_logic import PresenceDetector, auto_control_active, is_in_time_range, pick_state  # noqa: E402
 from sensor_parse import parse_payload  # noqa: E402
 
 
@@ -179,6 +179,27 @@ class WebParseTest(unittest.TestCase):
         self.assertIsNone(parse_epa({"records": []}))
         self.assertIsNone(parse_epa([{"itemengname": "PM10", "monitordate": "2026-11-20 15:00",
                                       "concentration": ""}]))
+
+
+class AutoControlScheduleTest(unittest.TestCase):
+    def at(self, hour, minute=0):
+        return datetime(2026, 11, 20, hour, minute)
+
+    def test_default_window(self):
+        self.assertFalse(auto_control_active(1, h(10), h(17), self.at(9, 59)))
+        self.assertTrue(auto_control_active(1, h(10), h(17), self.at(10)))      # 起點含
+        self.assertTrue(auto_control_active(1, h(10), h(17), self.at(16, 59)))
+        self.assertFalse(auto_control_active(1, h(10), h(17), self.at(17)))     # 終點不含
+
+    def test_disabled_overrides_window(self):
+        self.assertFalse(auto_control_active(0, h(10), h(17), self.at(12)))
+
+    def test_overnight_and_empty_and_null(self):
+        self.assertTrue(auto_control_active(1, h(22), h(6), self.at(23)))
+        self.assertTrue(auto_control_active(1, h(22), h(6), self.at(3)))
+        self.assertFalse(auto_control_active(1, h(22), h(6), self.at(12)))
+        self.assertFalse(auto_control_active(1, h(10), h(10), self.at(10)))
+        self.assertFalse(auto_control_active(1, None, h(17), self.at(12)))
 
 
 class SwitchDecisionTest(unittest.TestCase):

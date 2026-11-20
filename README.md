@@ -103,7 +103,7 @@ cp setting_example/AQDC-actor-default.json setting/AQDC-actor.json
 | `cwa_Home` | `StationName`, `DateTime`, `AirTemperature`, `RelativeHumidity`, `AirPressure` |
 | `epa_Home` | `PM2_5`, `PM10`, `time` |
 | `actor_RD-200HH1` | `state`, `in_home`, `start_time`, `end_time`, `humid_setting`, `humid_lower_limit`, `humid_upper_limit`, `set_fan_speed`, `description` |
-| `actor_RD-200HH1_botton` | `power`, `auto_turn_off`（單列） |
+| `actor_RD-200HH1_botton` | `power`, `auto_turn_off`, `auto_enabled`, `auto_start_time`, `auto_end_time`（單列，見下方「自動開關排程」） |
 
 `actor_RD-200HH1` 每列是一個狀態：在 `[start_time, end_time)` 且 `in_home` 相符時套用該列的風速與濕度設定；
 `start_time > end_time` 代表跨午夜；都不符合時用 `state` 編號最小的一列。
@@ -165,6 +165,35 @@ tail -f log/actor.log              # 應看到狀態切換與下指令的原因
 - 綁定失敗（例如開機時 Tailscale 尚未就緒）只記錄錯誤並每 30 秒重試，不影響讀感測器的主迴圈；
   `AQDC_local.service` 也加了 `After=/Wants=tailscaled.service`。
 - 驗證：`curl http://<Tailscale IP>:9106/metrics`，數值應與各表最新一筆一致。
+
+## 自動開關排程（Portal 可設定）
+
+除濕機的「自動開 / 關」（依濕度、`AWAY_ONLY` 在家關機）只在排程時段內作用，設定放在 `actor_RD-200HH1_botton`（單列）：
+
+| 欄位 | 預設 | 說明 |
+|---|---|---|
+| `auto_enabled` | 1 | 0 = 完全停用自動開關（例如窗戶沒關時）；優先於排程 |
+| `auto_start_time` | `10:00:00` | 排程開始（含） |
+| `auto_end_time` | `17:00:00` | 排程結束（不含）；開始 > 結束代表跨午夜；相等代表空時段（永不自動） |
+
+- 排程外或停用時 `actor.py` **完全不自動開關**：不會自動開，也不會自動關（機器開著就維持開著）。
+- `power=0`（強制關機）不受排程影響，仍每分鐘檢查——這是緊急開關。風速 / 濕度設定的套用也不受排程影響，只是不碰開關。
+- 時間取 Pi 的本地時區；修改後下一輪（最多 1 分鐘）生效，不必重啟。
+- 現有資料庫要先加欄位（一次性）：
+
+```sql
+ALTER TABLE `actor_RD-200HH1_botton`
+  ADD COLUMN `auto_enabled` TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN `auto_start_time` TIME NOT NULL DEFAULT '10:00:00',
+  ADD COLUMN `auto_end_time` TIME NOT NULL DEFAULT '17:00:00';
+```
+
+- Portal 建議使用專用資料庫帳號，只給這三欄的更新權限（欄位層級授權）：
+
+```sql
+CREATE USER 'portal'@'<Portal 連線來源>' IDENTIFIED BY '...';
+GRANT SELECT, UPDATE (`auto_enabled`, `auto_start_time`, `auto_end_time`) ON `<db>`.`actor_RD-200HH1_botton` TO 'portal'@'<Portal 連線來源>';
+```
 
 ## 日誌與維運
 

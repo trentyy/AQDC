@@ -1,5 +1,11 @@
 # 修改紀錄
 
+## 2026-11-20 除濕機自動開關排程
+
+- `actor_RD-200HH1_botton` 新增 `auto_enabled`（預設 1）、`auto_start_time`（預設 10:00）、`auto_end_time`（預設 17:00），Portal 可直接更新。自動開 / 關只在啟用且位於排程內時作用；排程外與停用時不自動開也不自動關。`power=0` 強制關機不受影響。
+- 邏輯：`actor_logic.auto_control_active`（附單元測試）；`actor.py` 每輪讀取，改設定不需重啟。
+- **需先對資料庫執行 README「自動開關排程」的 ALTER TABLE，再部署新版 `actor.py`**，否則 `actor.py` 每輪都會因缺欄位而失敗。
+
 ## 2026-11-20 readSensor 的 Prometheus 指標
 
 - 新增 `sensor_metrics.py`：`readSensor.py` 在 `parse_payload` 之後、寫入 MySQL 之前更新指標，並在 `/metrics` 提供，讓 Portal 的 Prometheus 直接抓讀數。資料庫寫入失敗時指標仍會更新；MySQL 寫入、資料表、交易處理未更動。

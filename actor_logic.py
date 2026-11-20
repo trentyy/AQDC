@@ -109,3 +109,14 @@ def decide_switch(is_on: bool, humidity, lower, upper, in_home: bool,
     if humidity is not None and humidity > upper:
         return 1, "humidity"
     return None, "humidity"
+
+
+def auto_control_active(enabled, start, end, now: datetime) -> bool:
+    """自動開關是否在作用：開關為啟用，且現在落在 [start, end)（支援跨午夜；start == end 為空區間）。
+
+    start / end 為 timedelta（資料庫 TIME 欄位）；任一為 None 時視為沒有排程，不作用。
+    """
+    if not enabled or start is None or end is None:
+        return False
+    cur = timedelta(hours=now.hour, minutes=now.minute)
+    return is_in_time_range(cur, start, end)
