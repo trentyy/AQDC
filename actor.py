@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from loguru import logger
 from JciHitachi.api import JciHitachiAWSAPI
 
-from actor_logic import PresenceDetector, pick_state
+from actor_logic import PresenceDetector, decide_switch, decision_slot, pick_state
 from common import db_connect, load_home_setting, load_setting
 
 logger.add("./log/actor.log", rotation="monthly", encoding="utf-8",
@@ -28,6 +28,8 @@ DEFAULTS = {
     "SENSOR_STALE_MINUTES": 15,  # 感測器資料超過幾分鐘沒更新視為失效
     "MIN_SWITCH_SECONDS": 600,  # 濕度自動開/關機的最短間隔，保護壓縮機
     "COMMAND_COOLDOWN_SECONDS": 180,  # 同一道指令的重送間隔（雲端狀態更新有延遲）
+    "AWAY_ONLY": False,         # True: 只在不在家時運作，在家一律關機
+    "CONTROL_INTERVAL_MINUTES": 0,  # 開關判定間隔（分鐘），0 = 每輪（每分鐘）判定；整點起算對齊
 }
 
 
@@ -60,6 +62,7 @@ class StateMachine(object):
         self.last_cmd = {}          # (名稱, 值) -> 上次送出時間
         self.last_switch_value = None
         self.last_switch_change = None
+        self.last_slot = None       # 上一次完成開關判定的時段
         logger.info("...initiate finished")
 
     # ---------- 雲端 API ----------
@@ -186,35 +189,52 @@ class StateMachine(object):
             logger.info("power button is off -> turn off")
             self._send("Switch", 0)
 
-    def autoTurnOffFunction(self):
-        if not self.power:
-            return
-        cfg = self.state_config
-        sw = self.device_status['Switch']
+    def _decision_due(self):
+        """是否到了新的判定時段（CONTROL_INTERVAL_MINUTES，預設每分鐘；Pi 上設為 30）。
+        回傳 (是否該判定, 時段代號)。"""
+        interval = self.opt["CONTROL_INTERVAL_MINUTES"]
+        if interval <= 0:
+            return True, None
+        slot = decision_slot(datetime.now(), interval)
+        return slot != self.last_slot, slot
 
-        if sw == 'on':
-            if self.auto_turn_off != 1:
-                return
-            if self.humidity is None:
-                return  # 濕度資料失效時不自動關機
-            if self.humidity < cfg["humid_lower_limit"] and self._switch_interval_ok():
-                self._send("Switch", 0)
-                logger.info(f"humidity {self.humidity} < lower limit {cfg['humid_lower_limit']} -> turn off")
-        elif sw == 'off':
-            if self.auto_turn_off == 0:
-                self._send("Switch", 1)
-                logger.info("auto_turn_off is 0 -> turn on")
-            elif (self.humidity is not None
-                  and self.humidity >= cfg["humid_upper_limit"]
-                  and self._switch_interval_ok()):
-                self._send("Switch", 1)
-                logger.info(f"humidity {self.humidity} >= upper limit {cfg['humid_upper_limit']} -> turn on")
+    def autoTurnOffFunction(self) -> bool:
+        """依在家狀態與濕度決定開關；回傳是否沒有失敗（失敗時不消耗判定時段，下一輪重試）。"""
+        if not self.power:
+            return True
+        cfg = self.state_config
+        is_on = self.device_status['Switch'] == 'on'
+        in_home = self.presence.in_home
+
+        action, reason = decide_switch(
+            is_on, self.humidity, cfg["humid_lower_limit"], cfg["humid_upper_limit"],
+            in_home, away_only=self.opt["AWAY_ONLY"], auto_turn_off=self.auto_turn_off)
+        if action is None:
+            return True
+        # 依濕度開關受最短間隔限制；在家強制關機與 auto_turn_off=0 開機不受限
+        if reason == "humidity" and not self._switch_interval_ok():
+            logger.debug("switch interval too short, skip")
+            return True
+
+        if not self._send("Switch", action):
+            return False
+        if reason == "home":
+            logger.info("someone is home (AWAY_ONLY) -> turn off")
+        elif reason == "always_on":
+            logger.info("auto_turn_off is 0 -> turn on")
+        elif action == 1:
+            logger.info(f"humidity {self.humidity} > upper limit {cfg['humid_upper_limit']} -> turn on")
+        else:
+            logger.info(f"humidity {self.humidity} <= lower limit {cfg['humid_lower_limit']} -> turn off")
+        return True
 
     def run_cycle(self):
         self.refresh()
         self.updateState()
-        self.checkAlwaysOff()
-        self.autoTurnOffFunction()
+        self.checkAlwaysOff()           # 電源按鈕強制關機：每輪都檢查
+        due, slot = self._decision_due()
+        if due and self.autoTurnOffFunction():
+            self.last_slot = slot
 
 
 if __name__ == "__main__":

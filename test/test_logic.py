@@ -181,5 +181,46 @@ class WebParseTest(unittest.TestCase):
                                       "concentration": ""}]))
 
 
+class SwitchDecisionTest(unittest.TestCase):
+    def d(self, **kw):
+        from actor_logic import decide_switch
+        args = dict(is_on=False, humidity=55, lower=50, upper=60, in_home=False,
+                    away_only=True, auto_turn_off=1)
+        args.update(kw)
+        return decide_switch(**args)
+
+    def test_away_turn_on_only_above_upper(self):
+        self.assertEqual(self.d(humidity=60.1), (1, "humidity"))
+        self.assertEqual(self.d(humidity=60)[0], None)        # 剛好 60 不算超過
+        self.assertEqual(self.d(humidity=55)[0], None)
+
+    def test_away_turn_off_at_or_below_lower(self):
+        self.assertEqual(self.d(is_on=True, humidity=50), (0, "humidity"))
+        self.assertEqual(self.d(is_on=True, humidity=50.1)[0], None)
+        self.assertEqual(self.d(is_on=True, humidity=70)[0], None)
+
+    def test_home_forces_off(self):
+        self.assertEqual(self.d(in_home=True, is_on=True, humidity=80), (0, "home"))
+        self.assertEqual(self.d(in_home=True, is_on=False, humidity=80)[0], None)
+
+    def test_home_not_away_only(self):
+        self.assertEqual(self.d(in_home=True, away_only=False, humidity=65), (1, "humidity"))
+
+    def test_stale_humidity_does_nothing(self):
+        self.assertEqual(self.d(humidity=None)[0], None)
+        self.assertEqual(self.d(humidity=None, is_on=True)[0], None)
+
+    def test_auto_turn_off_zero(self):
+        self.assertEqual(self.d(auto_turn_off=0, humidity=40), (1, "always_on"))
+        self.assertEqual(self.d(auto_turn_off=0, is_on=True, humidity=40)[0], None)
+
+    def test_decision_slot_half_hour(self):
+        from actor_logic import decision_slot
+        t = lambda h, m: datetime(2026, 11, 20, h, m)
+        self.assertEqual(decision_slot(t(8, 0), 30), decision_slot(t(8, 29), 30))
+        self.assertNotEqual(decision_slot(t(8, 29), 30), decision_slot(t(8, 30), 30))
+        self.assertNotEqual(decision_slot(t(8, 59), 30), decision_slot(t(9, 0), 30))
+
+
 if __name__ == "__main__":
     unittest.main()

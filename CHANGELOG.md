@@ -91,3 +91,11 @@
   - 工作（國立清華大學）：**新竹市東區**（`C0D660`），距清大約 0.95 公里。
 - 回傳的測站代碼必須與請求相符才寫入（`parse_cwa(station_id=...)`）；`healthcheck.py` 會檢查每個測站的表。
 - 注意：`cwa_home` 既有歷史資料是「新竹」（`467571`，竹北市局屬站），切換後同一張表會混有兩個測站，以 `StationName` 區分；Grafana 面板若不分測站，會在切換時間點出現落差。
+
+### 2026-11-20 除濕機改為「不在家才運作」，每半小時判定
+- `actor.py` 新增選填設定（`AQDC-actor.json`）：
+  - `AWAY_ONLY`（預設 false）：true 時在家一律關機，不在家才依濕度控制。
+  - `CONTROL_INTERVAL_MINUTES`（預設 0 = 每分鐘）：開關判定間隔，以當天 0 點起算對齊（30 即整點與 30 分各一次）。判定失敗（例如雲端指令失敗）不消耗該時段，下一輪重試。
+- 開關條件改為：濕度 **> `humid_upper_limit`** 開機；濕度 **<= `humid_lower_limit`** 關機（原本是 `>=` 與 `<`）。邏輯拆成 `actor_logic.decide_switch`，附單元測試。
+- `power=0`（電源按鈕強制關機）仍每分鐘檢查，不受判定間隔限制。
+- rpi4-4g 的設定：`AQDC-actor.json` 加入 `AWAY_ONLY: true`、`CONTROL_INTERVAL_MINUTES: 30`；資料庫 `actor_RD-200HH1_botton` 設為 `power=1, auto_turn_off=1`；`actor_RD-200HH1` 中 `in_home=0` 的狀態改為 `humid_setting=50, humid_lower_limit=50, humid_upper_limit=60`（修改前的值記錄在下方部署紀錄）。

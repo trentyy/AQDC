@@ -81,3 +81,31 @@ class PresenceDetector:
             else:
                 self._away_since = None
         return self.in_home
+
+
+def decision_slot(now: datetime, interval_minutes: int):
+    """回傳目前所在的判定時段（以當天 0 點起每 interval_minutes 分鐘為一格）。
+    interval_minutes <= 0 代表每次都判定，回傳 None 以外的唯一值即可，由呼叫端處理。"""
+    return (now.date(), (now.hour * 60 + now.minute) // interval_minutes)
+
+
+def decide_switch(is_on: bool, humidity, lower, upper, in_home: bool,
+                  away_only: bool = False, auto_turn_off: int = 1):
+    """依在家狀態與濕度決定開關。回傳 (動作, 原因)，動作為 1 開 / 0 關 / None 不動。
+
+    - away_only 且在家：保持關機（原因 "home"）
+    - 開機中：auto_turn_off=1 且濕度 <= lower 才關機（原因 "humidity"）
+    - 關機中：auto_turn_off=0 一律開機（原因 "always_on"）；否則濕度 > upper 才開機（原因 "humidity"）
+    - 濕度為 None（資料失效）時，不做濕度相關的動作
+    """
+    if away_only and in_home:
+        return (0, "home") if is_on else (None, "home")
+    if is_on:
+        if auto_turn_off == 1 and humidity is not None and humidity <= lower:
+            return 0, "humidity"
+        return None, "humidity"
+    if auto_turn_off == 0:
+        return 1, "always_on"
+    if humidity is not None and humidity > upper:
+        return 1, "humidity"
+    return None, "humidity"
