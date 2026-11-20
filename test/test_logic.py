@@ -117,5 +117,54 @@ class ParsePayloadTest(unittest.TestCase):
         self.assertEqual(len(rejected), 4)
 
 
+class WebParseTest(unittest.TestCase):
+    cwa = {"records": {"Station": [{
+        "StationName": "新竹", "StationId": "467571",
+        "ObsTime": {"DateTime": "2026-11-20T16:50:00+08:00"},
+        "WeatherElement": {"AirTemperature": "16.3", "RelativeHumidity": "56",
+                           "AirPressure": "1020.8", "Now": {"Precipitation": "0.0"}}}]}}
+
+    def test_cwa_ok(self):
+        from web_parse import parse_cwa
+        d = parse_cwa(self.cwa)
+        self.assertEqual(d["StationName"], "新竹")
+        self.assertEqual(d["AirTemperature"], "16.3")
+        self.assertEqual(d["AirPressure"], "1020.8")
+        self.assertNotIn("Now", d)
+
+    def test_cwa_missing(self):
+        from web_parse import parse_cwa
+        import copy
+        j = copy.deepcopy(self.cwa)
+        j["records"]["Station"][0]["WeatherElement"]["AirTemperature"] = "-99"
+        self.assertIsNone(parse_cwa(j))
+        j = copy.deepcopy(self.cwa)
+        j["records"]["Station"][0]["WeatherElement"]["AirPressure"] = "-99"
+        self.assertNotIn("AirPressure", parse_cwa(j))
+        self.assertIsNone(parse_cwa({"records": {"Station": []}}))
+
+    epa = [
+        {"itemengname": "PM10", "monitordate": "2026-11-20 14:00", "concentration": "30"},
+        {"itemengname": "PM2.5", "monitordate": "2026-11-20 15:00", "concentration": "11"},
+        {"itemengname": "PM10", "monitordate": "2026-11-20 15:00", "concentration": "34"},
+        {"itemengname": "O3", "monitordate": "2026-11-20 15:00", "concentration": "41"},
+    ]
+
+    def test_epa_list_and_dict(self):
+        from web_parse import parse_epa
+        for payload in (self.epa, {"records": self.epa}):
+            d = parse_epa(payload)
+            self.assertEqual(d["PM2_5"], "11")
+            self.assertEqual(d["PM10"], "34")
+            self.assertEqual(d["time"], datetime(2026, 11, 20, 15, 0))
+
+    def test_epa_empty_or_blank(self):
+        from web_parse import parse_epa
+        self.assertIsNone(parse_epa([]))
+        self.assertIsNone(parse_epa({"records": []}))
+        self.assertIsNone(parse_epa([{"itemengname": "PM10", "monitordate": "2026-11-20 15:00",
+                                      "concentration": ""}]))
+
+
 if __name__ == "__main__":
     unittest.main()

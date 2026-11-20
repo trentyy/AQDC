@@ -36,6 +36,14 @@ def db_connect(setting: dict, **kwargs):
     )
 
 
+def table_name(setting: dict, logical_name: str) -> str:
+    """資料表名稱對應：設定檔 `table_names` 可覆蓋，例如 {"cwa_Home": "cwa_home"}。
+
+    Linux 上的 MySQL / MariaDB 預設區分資料表名稱大小寫，各安裝的實際名稱可能不同。
+    """
+    return setting.get("table_names", {}).get(logical_name, logical_name)
+
+
 def redact(text, secrets) -> str:
     """把字串中的密鑰（API key、密碼）換成 ***，避免寫進 log。"""
     text = str(text)

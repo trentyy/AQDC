@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 import requests
 from loguru import logger
 
-from common import db_connect, load_home_setting, redact
+from common import db_connect, load_home_setting, redact, table_name
 
 logger.add("./log/healthcheck.log", rotation="monthly", encoding="utf-8",
            enqueue=True, retention="1 year")
@@ -40,7 +40,7 @@ def main() -> int:
     try:
         with con.cursor() as cur:
             for table, (col, default_max) in TABLES.items():
-                cur.execute(f"SELECT MAX(`{col}`) FROM `{table}`")
+                cur.execute(f"SELECT MAX(`{col}`) FROM `{table_name(setting, table)}`")
                 latest = cur.fetchone()[0]
                 limit = timedelta(minutes=limits.get(table, default_max))
                 if latest is None:

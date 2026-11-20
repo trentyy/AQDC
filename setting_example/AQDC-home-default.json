@@ -14,12 +14,16 @@
     },
     "airtw_epa":
     {
-        "url": "https://data.moenv.gov.tw/api/v2/aqx_p_203",
+        "url": "https://data.moenv.gov.tw/api/v2/aqx_p_212",
         "params":
         {
-            "api_key": "YOUR_KEY"
+            "api_key": "YOUR_KEY",
+            "limit": "100",
+            "filters": "siteid,EQ,24",
+            "sort": "monitordate desc"
         }
     },
+    "table_names": {},
     "healthcheck":
     {
         "notify_url": ""

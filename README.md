@@ -70,6 +70,12 @@ cp setting_example/AQDC-actor-default.json setting/AQDC-actor.json
 **`AQDC-home.json`**：`host/user/pw/db` 是 MySQL；`cwa` 是[氣象署開放資料](https://opendata.cwa.gov.tw/)（`Authorization` 為你的授權碼、`StationId` 為測站）；
 `airtw_epa` 是[環境部開放資料](https://data.moenv.gov.tw/)；`healthcheck.notify_url` 選填，填 webhook 網址就會在資料過期時通知。
 `healthcheck.max_age_minutes` 可選填，例如 `{"home_dht22": 5}` 覆蓋各表的容許延遲（分鐘）。
+`table_names` 可選填，對應資料表的實際名稱，例如 `{"cwa_Home": "cwa_home", "epa_Home": "epa_home"}`（Linux 的 MySQL 區分大小寫）。
+
+**資料庫位址（`host`）**：資料庫與服務在同一台 Pi 時，請填 `127.0.0.1`，不要填網卡 IP。
+同一台 Pi 有線（eth0）與無線（wlan0）的 IP 不同（本專案為 192.168.31.14 / .15），填其中一個會在切換網路後連不到資料庫；
+`127.0.0.1` 與網路介面無關。Docker 容器內的服務（`api/`）則填 Docker 閘道位址（見 `docker-compose.yml` 的 `host.docker.internal`）。
+從其他電腦連線（Grafana、DB 工具）請用 Tailscale 位址或主機名稱，這類位址也不會隨有線 / 無線切換而變。
 
 **`AQDC-actor.json`**：`EMAIL`、`PASSWORD`、`DEVICENAME` 為日立 App 帳號與設備名稱。以下為**選填**，沒寫就用預設值：
 

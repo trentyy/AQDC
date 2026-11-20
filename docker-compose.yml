@@ -2,6 +2,9 @@ services:
   api:
     build: ./api
     restart: always
+    extra_hosts:
+      # 容器內以 host.docker.internal 連到宿主機（Pi）的 MySQL，不受有線 / 無線 IP 變動影響
+      - "host.docker.internal:host-gateway"
     ports:
       - 8888:8888
     networks:

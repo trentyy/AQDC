@@ -61,3 +61,14 @@
 - `readElectricity.py`：七段顯示器 OCR 的裁切座標與閾值仍為寫死；建議長期改用智慧插座 / PZEM-004T 這類可直接回報電壓電流的設備。
 - `api/app/main.py`（冰箱 AM2108 API）未審查也未修改；已知會 `print` 含密碼的資料庫連線字串、並以 `debug=True` 啟動。
 - 服務間仍以資料庫輪詢溝通（未導入 MQTT / Home Assistant）。
+
+## 2026-11-20（續）Pi 實機部署時發現的問題
+
+- **資料表名稱可設定**：`AQDC-home.json` 新增選填 `table_names`，例如 `{"cwa_Home": "cwa_home", "epa_Home": "epa_home"}`。
+  Linux 的 MariaDB 預設區分大小寫（`lower_case_table_names=0`），部署的 Pi 上實際表名是小寫；沒設定則沿用 `cwa_Home` / `epa_Home`。`readWeb.py`、`healthcheck.py` 已套用。
+- **EPA 解析修正**：目前使用的端點 `aqx_p_212` 直接回傳 list，而不是 `{"records": [...]}`，舊版會每分鐘丟出 `TypeError`（log 因此膨脹到數百 MB）。
+  解析移到 `web_parse.py`，同時支援 list 與 dict，並取最新 `monitordate` 時間點的 PM2.5 / PM10；空值、空字串會略過。
+- **CWA 缺測值**：溫度、濕度小於等於 -90（官方以 -99 等代碼表示無資料）整筆捨棄；氣壓缺值只是不存該欄位。
+  CWA 的 URL、參數（`Authorization`、`StationId`）與回傳結構（`records.Station[].WeatherElement`）經實機驗證**沒有變動**，沒有查到官方的異動公告，也沒能讀取官方產品說明文件的缺測代碼章節。
+- `setting_example` 的 EPA 範例改為 `aqx_p_212` 並加上 `filters=siteid,EQ,24`（固定新竹測站），避免依賴回傳順序。
+- `test/test_logic.py` 加入 CWA / EPA 解析測試。
