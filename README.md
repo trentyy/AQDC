@@ -177,7 +177,8 @@ tail -f log/actor.log              # 應看到狀態切換與下指令的原因
 `grafana/dashboards/` 放以檔案管理的儀表板（目前有「AQDC 工作地點」，顯示 `cwa_work` 與家的對照）。載入方式：
 
 ```bash
-sudo cp grafana/provisioning/aqdc.yaml /etc/grafana/provisioning/dashboards/aqdc.yaml   # 依實際路徑修改 path
+sudo mkdir -p /var/lib/grafana/dashboards/aqdc && sudo cp grafana/dashboards/*.json /var/lib/grafana/dashboards/aqdc/   # Grafana 讀不到 /home，要複製過去
+sudo cp grafana/provisioning/aqdc.yaml /etc/grafana/provisioning/dashboards/aqdc.yaml
 sudo systemctl restart grafana-server
 ```
 

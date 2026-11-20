@@ -1,5 +1,5 @@
-# 範例：複製到 /etc/grafana/provisioning/dashboards/aqdc.yaml 後重啟 grafana-server
-# path 請依實際的專案位置修改，且 grafana 使用者必須讀得到該目錄。
+# 範例：先把 grafana/dashboards/*.json 複製到 /var/lib/grafana/dashboards/aqdc/（Grafana 的 systemd 沙箱讀不到 /home），
+# 再把這個檔複製到 /etc/grafana/provisioning/dashboards/aqdc.yaml 並重啟 grafana-server。
 apiVersion: 1
 providers:
   - name: aqdc
@@ -9,4 +9,4 @@ providers:
     disableDeletion: true
     updateIntervalSeconds: 60
     options:
-      path: /home/pi/Github/AQDC/grafana/dashboards
+      path: /var/lib/grafana/dashboards/aqdc

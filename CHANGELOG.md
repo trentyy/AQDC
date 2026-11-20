@@ -107,3 +107,5 @@
 - rpi4-4g：Grafana 的 MySQL 資料來源位址由 `192.168.31.15:3306` 改為 `127.0.0.1:3306`（有線 / 無線切換不再影響儀表板）。
 - `api/app/main.py`：移除啟動時 `print` 含密碼的資料庫連線字串。
 - 日立雲端登入問題（設備需重新設定連網功能）：待使用者回家處理，`actor` 先維持重試。
+- 部署踩到的坑：provisioning 路徑指向 `/home/pi/...` 時，Grafana 因 systemd 沙箱無法讀取（`lstat /home/pi: permission denied`），服務會反覆重啟；改成把儀表板 JSON 複製到 `/var/lib/grafana/dashboards/aqdc/`（與 portal 相同做法）。部署程序已更新到 README。
+- Grafana 資料庫修改前備份：`/home/pi/grafana.db.bak-20261120-datasource`。
